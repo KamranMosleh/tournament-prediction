@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  --bg:           #0d1117;
+  --surface:      #161b22;
+  --surface-2:    #21262d;
+  --border:       #30363d;
+  --border-subtle:#21262d;
+  --text:         #f0f6fc;
+  --text-muted:   #8b949e;
+  --text-subtle:  #484f58;
+  --accent:       #3fb950;
+  --accent-dark:  #2ea043;
+  --accent-glow:  rgba(63,185,80,0.15);
+  --gold:         #d29922;
+  --red:          #f85149;
+  --blue:         #58a6ff;
+}
+
+@theme inline {
+  --color-bg:           var(--bg);
+  --color-surface:      var(--surface);
+  --color-surface-2:    var(--surface-2);
+  --color-border:       var(--border);
+  --color-text:         var(--text);
+  --color-muted:        var(--text-muted);
+  --color-subtle:       var(--text-subtle);
+  --color-accent:       var(--accent);
+  --color-accent-dark:  var(--accent-dark);
+  --color-gold:         var(--gold);
+  --color-red:          var(--red);
+  --color-blue:         var(--blue);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background:  var(--bg);
+  color:       var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Thin scrollbar */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: var(--bg); }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-subtle); }
+
+/* Remove number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+input[type="number"] { -moz-appearance: textfield; }
+
+/* Pitch-line divider between score inputs */
+.pitch-divider {
+  width: 2px;
+  flex-shrink: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--accent) 0px, var(--accent) 4px,
+    transparent 4px, transparent 9px
+  );
+  opacity: 0.35;
+}
+
+/* Leaderboard bar entrance */
+@keyframes fill-bar {
+  from { width: 0%; }
+}
+.bar-fill { animation: fill-bar 0.55s cubic-bezier(0.4,0,0.2,1) forwards; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 0.75s linear infinite; }
+
+/* Pulse for saving state */
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.saving { animation: pulse-opacity 1s ease-in-out infinite; }

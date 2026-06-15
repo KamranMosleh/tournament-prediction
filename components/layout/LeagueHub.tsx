@@ -50,6 +50,13 @@ export function LeagueHub({
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
+  // Keep client state aligned with fresh server props (e.g. after router.refresh()).
+  useEffect(() => {
+    setPlayers(initialPlayers)
+    setMatches(initialMatches)
+    setPredictions(initialPredictions)
+  }, [initialPlayers, initialMatches, initialPredictions])
+
   // Stable ref for player IDs to avoid Realtime re-subscribe loop
   const playerIdsRef = useRef(initialPlayers.map(p => p.id))
   useEffect(() => { playerIdsRef.current = players.map(p => p.id) }, [players])

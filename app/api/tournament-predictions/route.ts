@@ -15,15 +15,32 @@ export async function POST(req: NextRequest) {
     const supabase = createServiceClient()
 
     // Verify session
-    const { data: player } = await supabase.from('players').select('*').eq('session_token', token).single()
-    if (!player || player.id !== player_id) {
+    const { data: player } = await supabase
+      .from('players')
+      .select('id, league_id')
+      .eq('session_token', token)
+      .single()
+
+    if (!player || player.id !== player_id || player.league_id !== league_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: league } = await supabase
+      .from('leagues')
+      .select('tournament_code, tournament_season')
+      .eq('id', league_id)
+      .single()
+
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 })
     }
 
     // Check deadline: must be before first match kicks off
     const { data: firstMatch } = await supabase
       .from('matches')
       .select('kickoff_time, status')
+      .eq('tournament_code', league.tournament_code)
+      .eq('tournament_season', league.tournament_season)
       .order('kickoff_time', { ascending: true })
       .limit(1)
       .single()

@@ -47,6 +47,8 @@ export function LeagueHub({
   const [predictions, setPredictions] = useState(initialPredictions)
   const [tournamentPredictions] = useState(initialTournamentPredictions)
   const [summaries] = useState(initialSummaries)
+  const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   // Stable ref for player IDs to avoid Realtime re-subscribe loop
   const playerIdsRef = useRef(initialPlayers.map(p => p.id))
@@ -109,6 +111,41 @@ export function LeagueHub({
   const myTournamentPick = tournamentPredictions.find(p => p.player_id === session.player_id) ?? null
   const latestSummary = summaries.length > 0 ? summaries[summaries.length - 1] : null
   const firstMatchLocked = matches.length > 0 && matches[0].status !== 'open'
+
+  const handleImportFixtures = async () => {
+    if (syncState === 'syncing') return
+    setSyncState('syncing')
+    setSyncMessage(null)
+
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': session.session_token,
+        },
+        body: JSON.stringify({
+          league_id: league.id,
+          tournament_code: league.tournament_code,
+          season: league.tournament_season,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setSyncState('error')
+        setSyncMessage(data.error ?? 'Failed to import fixtures')
+        return
+      }
+
+      setSyncState('success')
+      setSyncMessage(`Imported ${data.matchesUpdated ?? 0} fixtures`)
+      router.refresh()
+    } catch {
+      setSyncState('error')
+      setSyncMessage('Failed to import fixtures')
+    }
+  }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'leaderboard', label: 'Standings', icon: <BarChart2 size={13} /> },
@@ -188,6 +225,11 @@ export function LeagueHub({
             matches={matchesWithPredictions}
             playerId={session.player_id}
             sessionToken={session.session_token}
+            isAdmin={session.is_admin}
+            canImportFixtures={league.sync_source === 'api'}
+            onImportFixtures={handleImportFixtures}
+            syncState={syncState}
+            syncMessage={syncMessage}
           />
         )}
         {tab === 'picks' && (

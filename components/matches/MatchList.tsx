@@ -6,15 +6,54 @@ interface Props {
   matches: MatchWithPrediction[]
   playerId: string
   sessionToken: string
+  isAdmin?: boolean
+  canImportFixtures?: boolean
+  onImportFixtures?: () => void
+  syncState?: 'idle' | 'syncing' | 'success' | 'error'
+  syncMessage?: string | null
 }
 
-export function MatchList({ matches, playerId, sessionToken }: Props) {
+export function MatchList({
+  matches,
+  playerId,
+  sessionToken,
+  isAdmin = false,
+  canImportFixtures = false,
+  onImportFixtures,
+  syncState = 'idle',
+  syncMessage = null,
+}: Props) {
   if (matches.length === 0) {
     return (
       <div className="text-center py-16" style={{ color: 'var(--text-muted)' }}>
         <div className="text-4xl mb-3">📅</div>
         <p className="font-medium">No matches yet</p>
         <p className="text-sm mt-1">The fixture list hasn't been added yet.</p>
+        {isAdmin && canImportFixtures && (
+          <div className="mt-5 flex flex-col items-center gap-2">
+            <button
+              onClick={onImportFixtures}
+              disabled={!onImportFixtures || syncState === 'syncing'}
+              className="px-4 py-2 rounded-lg text-sm font-medium"
+              style={{
+                background: 'var(--accent)',
+                color: '#000',
+                opacity: syncState === 'syncing' ? 0.7 : 1,
+                cursor: syncState === 'syncing' ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {syncState === 'syncing' ? 'Importing fixtures…' : 'Import Fixtures'}
+            </button>
+            {syncMessage && (
+              <p
+                className="text-xs"
+                style={{ color: syncState === 'error' ? 'var(--red)' : 'var(--text-subtle)' }}
+              >
+                {syncMessage}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     )
   }

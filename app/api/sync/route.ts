@@ -22,12 +22,13 @@ function mapStatus(status: string): MatchStatus {
   return 'open'
 }
 
-function isAuthorized(req: NextRequest): boolean {
+async function isAuthorized(req: NextRequest, supabase: ReturnType<typeof createServiceClient>, leagueId?: string): Promise<boolean> {
   // Vercel Cron sends Authorization: Bearer <CRON_SECRET>
   const cronSecret = process.env.CRON_SECRET
   const syncSecret = process.env.SYNC_SECRET
   const auth = req.headers.get('authorization') ?? ''
   const xSecret = req.headers.get('x-sync-secret') ?? ''
+  const sessionToken = req.headers.get('x-session-token') ?? ''
 
   // Allow if no secrets configured (dev mode)
   if (!cronSecret && !syncSecret) return true
@@ -35,15 +36,29 @@ function isAuthorized(req: NextRequest): boolean {
   if (cronSecret && auth === `Bearer ${cronSecret}`) return true
   // Manual call with x-sync-secret header
   if (syncSecret && xSecret === syncSecret) return true
+
+  // Admin users can manually trigger fixture import from the app UI
+  if (sessionToken) {
+    const { data: player } = await supabase
+      .from('players')
+      .select('is_admin, league_id')
+      .eq('session_token', sessionToken)
+      .single()
+
+    if (player?.is_admin && (!leagueId || player.league_id === leagueId)) return true
+  }
+
   return false
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req))
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const supabase = createServiceClient()
   const body = await req.json().catch(() => ({}))
+  const leagueId: string | undefined = body.league_id
+
+  if (!(await isAuthorized(req, supabase, leagueId)))
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const tournamentCode: string = body.tournament_code ?? 'WC'
   const season: number = body.season ?? new Date().getFullYear()
 

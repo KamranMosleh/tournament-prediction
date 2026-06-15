@@ -84,11 +84,26 @@ CREATE TABLE tournament_predictions (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id        UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   league_id        UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
-  winner_team      TEXT NOT NULL,
-  top_scorer_name  TEXT NOT NULL,
+  winner_team      TEXT NOT NULL DEFAULT '',
+  top_scorer_name  TEXT NOT NULL DEFAULT '',
   submitted_at     TIMESTAMPTZ DEFAULT NOW(),
+  winner_submitted_at TIMESTAMPTZ,
+  top_scorer_submitted_at TIMESTAMPTZ,
   UNIQUE (player_id, league_id)
 );
+
+-- Existing projects: safe compatibility migration for per-pick deadlines/weights
+ALTER TABLE tournament_predictions
+  ADD COLUMN IF NOT EXISTS winner_submitted_at TIMESTAMPTZ;
+
+ALTER TABLE tournament_predictions
+  ADD COLUMN IF NOT EXISTS top_scorer_submitted_at TIMESTAMPTZ;
+
+ALTER TABLE tournament_predictions
+  ALTER COLUMN winner_team SET DEFAULT '';
+
+ALTER TABLE tournament_predictions
+  ALTER COLUMN top_scorer_name SET DEFAULT '';
 
 CREATE TABLE sync_log (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),

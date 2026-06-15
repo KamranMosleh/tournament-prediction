@@ -1,4 +1,5 @@
 import type { Match, MatchPrediction, TournamentPrediction, PlayerScore, Player, MatchStage, ScoringMode } from '@/types'
+import { getPickDeadlines, topScorerPointsForSubmittedAt, winnerPointsForSubmittedAt } from '@/lib/tournament-picks'
 
 const STAGE_MULTIPLIERS: Record<MatchStage, number> = {
   group: 1,
@@ -46,6 +47,7 @@ export function computeLeaderboard({
   const finishedMatches = matches.filter(m =>
     m.status === 'finished' && m.home_score !== null && m.away_score !== null
   )
+  const pickDeadlines = getPickDeadlines(matches)
 
   return players.map(player => {
     let totalMatchPoints = 0
@@ -75,8 +77,15 @@ export function computeLeaderboard({
     let tournamentPoints = 0
     const tp = tournamentPredictions.find(p => p.player_id === player.id)
     if (tp) {
-      if (tournamentWinner && tp.winner_team.toLowerCase() === tournamentWinner.toLowerCase()) tournamentPoints += 5
-      if (goldenBoot && tp.top_scorer_name.toLowerCase() === goldenBoot.toLowerCase()) tournamentPoints += 3
+      const winnerSubmittedAt = tp.winner_submitted_at ?? tp.submitted_at
+      const scorerSubmittedAt = tp.top_scorer_submitted_at ?? tp.submitted_at
+
+      if (tournamentWinner && tp.winner_team.toLowerCase() === tournamentWinner.toLowerCase()) {
+        tournamentPoints += winnerPointsForSubmittedAt(winnerSubmittedAt, pickDeadlines)
+      }
+      if (goldenBoot && tp.top_scorer_name.toLowerCase() === goldenBoot.toLowerCase()) {
+        tournamentPoints += topScorerPointsForSubmittedAt(scorerSubmittedAt, pickDeadlines)
+      }
     }
 
     return {

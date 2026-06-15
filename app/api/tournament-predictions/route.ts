@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import type { Match } from '@/types'
+import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
 
 export async function POST(req: NextRequest) {
   try {
@@ -7,9 +9,14 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { player_id, league_id, winner_team, top_scorer_name } = await req.json()
+    const winnerInput = typeof winner_team === 'string' ? winner_team.trim() : ''
+    const scorerInput = typeof top_scorer_name === 'string' ? top_scorer_name.trim() : ''
 
-    if (!player_id || !league_id || !winner_team?.trim() || !top_scorer_name?.trim()) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    if (!player_id || !league_id) {
+      return NextResponse.json({ error: 'Missing player_id or league_id' }, { status: 400 })
+    }
+    if (!winnerInput && !scorerInput) {
+      return NextResponse.json({ error: 'Provide winner_team or top_scorer_name' }, { status: 400 })
     }
 
     const supabase = createServiceClient()
@@ -35,29 +42,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 })
     }
 
-    // Check deadline: must be before first match kicks off
-    const { data: firstMatch } = await supabase
+    const { data: tournamentMatches } = await supabase
       .from('matches')
-      .select('kickoff_time, status')
+      .select('*')
       .eq('tournament_code', league.tournament_code)
       .eq('tournament_season', league.tournament_season)
       .order('kickoff_time', { ascending: true })
-      .limit(1)
+
+    const deadlines = getPickDeadlines((tournamentMatches ?? []) as Match[])
+    const winnerLocked = isDeadlinePassed(deadlines.finalKickoff)
+    const scorerLocked = isDeadlinePassed(deadlines.semiFinalKickoff)
+
+    const { data: existing } = await supabase
+      .from('tournament_predictions')
+      .select('*')
+      .eq('player_id', player_id)
+      .eq('league_id', league_id)
       .single()
 
-    if (firstMatch && firstMatch.status !== 'open') {
-      return NextResponse.json({ error: 'Tournament predictions are locked' }, { status: 409 })
+    if (winnerInput && winnerLocked && existing?.winner_team?.toLowerCase() !== winnerInput.toLowerCase()) {
+      return NextResponse.json({ error: 'Winner prediction is locked (final has started)' }, { status: 409 })
     }
-    if (firstMatch && new Date(firstMatch.kickoff_time) <= new Date()) {
-      return NextResponse.json({ error: 'Tournament predictions are locked' }, { status: 409 })
+    if (scorerInput && scorerLocked && existing?.top_scorer_name?.toLowerCase() !== scorerInput.toLowerCase()) {
+      return NextResponse.json({ error: 'Top scorer prediction is locked (semi-finals have started)' }, { status: 409 })
+    }
+
+    const winnerChanged = !!winnerInput && winnerInput !== (existing?.winner_team ?? '')
+    const scorerChanged = !!scorerInput && scorerInput !== (existing?.top_scorer_name ?? '')
+    const nowIso = new Date().toISOString()
+
+    const payload = {
+      player_id,
+      league_id,
+      winner_team: winnerInput || existing?.winner_team || '',
+      top_scorer_name: scorerInput || existing?.top_scorer_name || '',
+      submitted_at: nowIso,
+      winner_submitted_at: winnerChanged ? nowIso : (existing?.winner_submitted_at ?? existing?.submitted_at ?? null),
+      top_scorer_submitted_at: scorerChanged ? nowIso : (existing?.top_scorer_submitted_at ?? existing?.submitted_at ?? null),
     }
 
     const { data, error } = await supabase
       .from('tournament_predictions')
-      .upsert(
-        { player_id, league_id, winner_team: winner_team.trim(), top_scorer_name: top_scorer_name.trim(), submitted_at: new Date().toISOString() },
-        { onConflict: 'player_id,league_id' }
-      )
+      .upsert(payload, { onConflict: 'player_id,league_id' })
       .select()
       .single()
 

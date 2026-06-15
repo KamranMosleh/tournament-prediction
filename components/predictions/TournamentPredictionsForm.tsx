@@ -20,48 +20,78 @@ interface Props {
   playerId: string
   leagueId: string
   sessionToken: string
-  locked: boolean
+  winnerLocked: boolean
+  topScorerLocked: boolean
+  finalKickoff: string | null
+  semiFinalKickoff: string | null
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
-export function TournamentPredictionsForm({ existing, playerId, leagueId, sessionToken, locked }: Props) {
+export function TournamentPredictionsForm({
+  existing,
+  playerId,
+  leagueId,
+  sessionToken,
+  winnerLocked,
+  topScorerLocked,
+  finalKickoff,
+  semiFinalKickoff,
+}: Props) {
   const [winner, setWinner] = useState(existing?.winner_team ?? '')
   const [scorer, setScorer] = useState(existing?.top_scorer_name ?? '')
-  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [winnerSaveState, setWinnerSaveState] = useState<SaveState>('idle')
+  const [scorerSaveState, setScorerSaveState] = useState<SaveState>('idle')
   const [filterText, setFilterText] = useState('')
 
   const filteredTeams = WORLD_CUP_2026_TEAMS.filter(t =>
     t.toLowerCase().includes(filterText.toLowerCase())
   )
 
-  const save = async () => {
-    if (!winner || !scorer) return
-    setSaveState('saving')
+  const saveWinner = async () => {
+    if (!winner || winnerLocked) return
+    setWinnerSaveState('saving')
     try {
       const res = await fetch('/api/tournament-predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
-        body: JSON.stringify({ player_id: playerId, league_id: leagueId, winner_team: winner, top_scorer_name: scorer }),
+        body: JSON.stringify({ player_id: playerId, league_id: leagueId, winner_team: winner }),
       })
-      setSaveState(res.ok ? 'saved' : 'error')
-      if (res.ok) setTimeout(() => setSaveState('idle'), 3000)
+      setWinnerSaveState(res.ok ? 'saved' : 'error')
+      if (res.ok) setTimeout(() => setWinnerSaveState('idle'), 3000)
     } catch {
-      setSaveState('error')
+      setWinnerSaveState('error')
     }
   }
 
-  if (locked) {
+  const saveTopScorer = async () => {
+    if (!scorer || topScorerLocked) return
+    setScorerSaveState('saving')
+    try {
+      const res = await fetch('/api/tournament-predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
+        body: JSON.stringify({ player_id: playerId, league_id: leagueId, top_scorer_name: scorer }),
+      })
+      setScorerSaveState(res.ok ? 'saved' : 'error')
+      if (res.ok) setTimeout(() => setScorerSaveState('idle'), 3000)
+    } catch {
+      setScorerSaveState('error')
+    }
+  }
+
+  const allLocked = winnerLocked && topScorerLocked
+  if (allLocked) {
     return (
       <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         <div className="flex items-center gap-2 mb-4">
           <Lock size={16} style={{ color: 'var(--gold)' }} />
-          <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Tournament Picks — Locked</h3>
+          <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Tournament Picks — Fully Locked</h3>
         </div>
         {existing ? (
           <div className="flex flex-col gap-3">
-            <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={existing.winner_team} />
-            <PredRow icon={<User size={14} style={{ color: 'var(--blue)' }} />} label="Golden Boot" value={existing.top_scorer_name} />
+            <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={existing.winner_team || 'Not submitted'} />
+            <PredRow icon={<User size={14} style={{ color: 'var(--blue)' }} />} label="Golden Boot" value={existing.top_scorer_name || 'Not submitted'} />
           </div>
         ) : (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No tournament picks submitted.</p>
@@ -77,14 +107,19 @@ export function TournamentPredictionsForm({ existing, playerId, leagueId, sessio
         <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Tournament Picks</h3>
       </div>
       <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
-        Lock in before the first kick-off. Worth up to 8 bonus points.
+        Winner stays open until final kick-off. Top scorer locks at semi-final kick-off.
       </p>
 
       {/* Winner select */}
-      <div className="mb-4">
+      <div className="mb-5">
         <label className="text-xs font-medium uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-          🏆 Tournament Winner — 5 pts
+          🏆 Tournament Winner — up to 10 pts
         </label>
+        {winnerLocked && (
+          <p className="text-xs mb-2" style={{ color: 'var(--gold)' }}>
+            Locked at final kick-off{finalKickoff ? ` (${fmt(finalKickoff)})` : ''}
+          </p>
+        )}
         <div className="relative">
           <input
             type="text"
@@ -99,11 +134,14 @@ export function TournamentPredictionsForm({ existing, playerId, leagueId, sessio
               background: 'var(--bg)',
               border: '1.5px solid var(--border)',
               color: 'var(--text)',
+              opacity: winnerLocked ? 0.7 : 1,
+              cursor: winnerLocked ? 'not-allowed' : 'text',
             }}
+            disabled={winnerLocked}
             onFocus={e => { e.target.style.borderColor = 'var(--accent)' }}
             onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
           />
-          {!winner && filterText && (
+          {!winnerLocked && !winner && filterText && (
             <div className="absolute z-10 w-full mt-1 rounded-lg overflow-hidden shadow-xl"
               style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', maxHeight: '200px', overflowY: 'auto' }}>
               {filteredTeams.slice(0, 12).map(team => (
@@ -127,49 +165,87 @@ export function TournamentPredictionsForm({ existing, playerId, leagueId, sessio
         {winner && (
           <div className="flex items-center gap-2 mt-2">
             <span className="text-sm font-medium" style={{ color: 'var(--accent)' }}>✓ {winner}</span>
-            <button onClick={() => setWinner('')} className="text-xs" style={{ color: 'var(--text-muted)' }}>change</button>
+            {!winnerLocked && (
+              <button onClick={() => setWinner('')} className="text-xs" style={{ color: 'var(--text-muted)' }}>change</button>
+            )}
           </div>
+        )}
+        <button
+          onClick={saveWinner}
+          disabled={!winner || winnerLocked || winnerSaveState === 'saving'}
+          className="mt-3 w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+          style={{
+            background: !winner || winnerLocked ? 'var(--surface-2)' : 'var(--accent)',
+            color: !winner || winnerLocked ? 'var(--text-subtle)' : '#000',
+            cursor: !winner || winnerLocked ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {winnerSaveState === 'saving' && <Loader2 size={14} className="animate-spin" />}
+          {winnerSaveState === 'saved' && <Check size={14} />}
+          {winnerSaveState === 'saved' ? 'Winner saved!' : winnerSaveState === 'saving' ? 'Saving…' : 'Save winner'}
+        </button>
+        {winnerSaveState === 'error' && (
+          <p className="text-xs text-center mt-2" style={{ color: 'var(--red)' }}>Failed to save winner.</p>
         )}
       </div>
 
       {/* Golden Boot */}
-      <div className="mb-6">
+      <div>
         <label className="text-xs font-medium uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-          ⚽ Golden Boot (Top Scorer) — 3 pts
+          ⚽ Golden Boot (Top Scorer) — up to 6 pts
         </label>
+        {topScorerLocked && (
+          <p className="text-xs mb-2" style={{ color: 'var(--gold)' }}>
+            Locked at semi-final kick-off{semiFinalKickoff ? ` (${fmt(semiFinalKickoff)})` : ''}
+          </p>
+        )}
         <input
           type="text"
           placeholder="Player name…"
           value={scorer}
           onChange={e => setScorer(e.target.value)}
           className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
-          style={{ background: 'var(--bg)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
+          style={{
+            background: 'var(--bg)',
+            border: '1.5px solid var(--border)',
+            color: 'var(--text)',
+            opacity: topScorerLocked ? 0.7 : 1,
+            cursor: topScorerLocked ? 'not-allowed' : 'text',
+          }}
+          disabled={topScorerLocked}
           onFocus={e => { e.target.style.borderColor = 'var(--accent)' }}
           onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
         />
+        <button
+          onClick={saveTopScorer}
+          disabled={!scorer || topScorerLocked || scorerSaveState === 'saving'}
+          className="mt-3 w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+          style={{
+            background: !scorer || topScorerLocked ? 'var(--surface-2)' : 'var(--accent)',
+            color: !scorer || topScorerLocked ? 'var(--text-subtle)' : '#000',
+            cursor: !scorer || topScorerLocked ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {scorerSaveState === 'saving' && <Loader2 size={14} className="animate-spin" />}
+          {scorerSaveState === 'saved' && <Check size={14} />}
+          {scorerSaveState === 'saved' ? 'Top scorer saved!' : scorerSaveState === 'saving' ? 'Saving…' : 'Save top scorer'}
+        </button>
+        {scorerSaveState === 'error' && (
+          <p className="text-xs text-center mt-2" style={{ color: 'var(--red)' }}>Failed to save top scorer.</p>
+        )}
       </div>
-
-      {/* Save button */}
-      <button
-        onClick={save}
-        disabled={!winner || !scorer || saveState === 'saving'}
-        className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all"
-        style={{
-          background: !winner || !scorer ? 'var(--surface-2)' : 'var(--accent)',
-          color: !winner || !scorer ? 'var(--text-subtle)' : '#000',
-          cursor: !winner || !scorer ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {saveState === 'saving' && <Loader2 size={14} className="animate-spin" />}
-        {saveState === 'saved' && <Check size={14} />}
-        {saveState === 'saved' ? 'Picks saved!' : saveState === 'saving' ? 'Saving…' : 'Save my picks'}
-      </button>
-
-      {saveState === 'error' && (
-        <p className="text-xs text-center mt-2" style={{ color: 'var(--red)' }}>Failed to save. Try again.</p>
-      )}
     </div>
   )
+}
+
+function fmt(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function PredRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

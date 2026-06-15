@@ -15,6 +15,7 @@ import { MatchList } from '@/components/matches/MatchList'
 import { TournamentPredictionsForm } from '@/components/predictions/TournamentPredictionsForm'
 import { ResultsForm } from '@/components/predictions/ResultsForm'
 import { createClient } from '@/lib/supabase/client'
+import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
 
 type Tab = 'leaderboard' | 'matches' | 'picks' | 'results'
 
@@ -117,7 +118,9 @@ export function LeagueHub({
 
   const myTournamentPick = tournamentPredictions.find(p => p.player_id === session.player_id) ?? null
   const latestSummary = summaries.length > 0 ? summaries[summaries.length - 1] : null
-  const firstMatchLocked = matches.length > 0 && matches[0].status !== 'open'
+  const deadlines = getPickDeadlines(matches)
+  const winnerLocked = isDeadlinePassed(deadlines.finalKickoff)
+  const topScorerLocked = isDeadlinePassed(deadlines.semiFinalKickoff)
 
   const handleImportFixtures = async () => {
     if (syncState === 'syncing') return
@@ -245,7 +248,10 @@ export function LeagueHub({
             playerId={session.player_id}
             leagueId={league.id}
             sessionToken={session.session_token}
-            locked={firstMatchLocked}
+            winnerLocked={winnerLocked}
+            topScorerLocked={topScorerLocked}
+            finalKickoff={deadlines.finalKickoff}
+            semiFinalKickoff={deadlines.semiFinalKickoff}
           />
         )}
         {tab === 'results' && session.is_admin && (

@@ -64,6 +64,8 @@ export interface TournamentPrediction {
   winner_team: string
   top_scorer_name: string
   submitted_at: string
+  winner_submitted_at?: string | null
+  top_scorer_submitted_at?: string | null
 }
 
 export interface MatchdaySummary {

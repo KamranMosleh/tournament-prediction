@@ -2,14 +2,16 @@
 
 import { useState, useCallback } from 'react'
 import { Check, Loader2, MapPin, Sparkles } from 'lucide-react'
-import type { MatchWithPrediction, AIDifficulty } from '@/types'
+import type { MatchWithPrediction, AIDifficulty, MatchRecap } from '@/types'
 import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
+import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
 
 interface Props {
   match: MatchWithPrediction
   playerId: string
   sessionToken: string
+  recap?: MatchRecap | null
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -20,7 +22,7 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, sessionToken }: Props) {
+export function MatchCard({ match, playerId, sessionToken, recap }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -129,6 +131,11 @@ export function MatchCard({ match, playerId, sessionToken }: Props) {
         <div className="px-4 pb-2 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
           Final: {match.home_score}–{match.away_score}
         </div>
+      )}
+
+      {/* Per-player roast recap (shown after match finishes, once generated) */}
+      {recap && match.status === 'finished' && (
+        <MatchRecapCard recap={recap} />
       )}
     </div>
   )

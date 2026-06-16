@@ -76,6 +76,23 @@ export interface MatchdaySummary {
   generated_at: string
 }
 
+export interface PlayerRoast {
+  player_name: string
+  prediction: string | null  // e.g. "2-1", or null if no prediction submitted
+  actual: string             // e.g. "3-0"
+  points: number
+  roast: string              // one playful sentence
+}
+
+export interface MatchRecap {
+  id: string
+  league_id: string
+  match_id: string
+  headline: string
+  roasts: PlayerRoast[]
+  generated_at: string
+}
+
 export interface PlayerScore {
   player_id: string
   display_name: string

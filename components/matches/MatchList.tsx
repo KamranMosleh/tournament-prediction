@@ -1,11 +1,12 @@
 import { MatchCard } from './MatchCard'
 import { stageLabel, stageOrder } from '@/lib/utils'
-import type { MatchWithPrediction, MatchStage } from '@/types'
+import type { MatchWithPrediction, MatchRecap, MatchStage } from '@/types'
 
 interface Props {
   matches: MatchWithPrediction[]
   playerId: string
   sessionToken: string
+  recaps?: MatchRecap[]
   isAdmin?: boolean
   canImportFixtures?: boolean
   onImportFixtures?: () => void
@@ -17,6 +18,7 @@ export function MatchList({
   matches,
   playerId,
   sessionToken,
+  recaps = [],
   isAdmin = false,
   canImportFixtures = false,
   onImportFixtures,
@@ -58,6 +60,9 @@ export function MatchList({
     )
   }
 
+  // Build match-id → recap lookup for O(1) access in render
+  const recapMap = new Map(recaps.map(r => [r.match_id, r]))
+
   // Group by stage
   const grouped = new Map<MatchStage, MatchWithPrediction[]>()
   for (const m of matches) {
@@ -83,13 +88,13 @@ export function MatchList({
 
           {/* Group sub-sections */}
           {stage === 'group'
-            ? <GroupStageSection matches={stageMatches} playerId={playerId} sessionToken={sessionToken} />
+            ? <GroupStageSection matches={stageMatches} playerId={playerId} sessionToken={sessionToken} recapMap={recapMap} />
             : (
               <div className="flex flex-col gap-3">
                 {stageMatches
                   .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                   .map(m => (
-                    <MatchCard key={m.id} match={m} playerId={playerId} sessionToken={sessionToken} />
+                    <MatchCard key={m.id} match={m} playerId={playerId} sessionToken={sessionToken} recap={recapMap.get(m.id)} />
                   ))}
               </div>
             )
@@ -100,7 +105,7 @@ export function MatchList({
   )
 }
 
-function GroupStageSection({ matches, playerId, sessionToken }: Props) {
+function GroupStageSection({ matches, playerId, sessionToken, recapMap }: Props & { recapMap: Map<string, MatchRecap> }) {
   const byGroup = new Map<string, MatchWithPrediction[]>()
   for (const m of matches) {
     const g = m.group_name ?? 'TBD'
@@ -122,7 +127,7 @@ function GroupStageSection({ matches, playerId, sessionToken }: Props) {
             {groupMatches
               .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
               .map(m => (
-                <MatchCard key={m.id} match={m} playerId={playerId} sessionToken={sessionToken} />
+                <MatchCard key={m.id} match={m} playerId={playerId} sessionToken={sessionToken} recap={recapMap.get(m.id)} />
               ))}
           </div>
         </div>

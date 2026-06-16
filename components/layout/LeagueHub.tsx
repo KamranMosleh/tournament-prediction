@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { BarChart2, Calendar, Trophy, Shield, Send, Home } from 'lucide-react'
 import type {
   League, Player, Match, MatchPrediction, TournamentPrediction,
-  MatchdaySummary, Session, MatchWithPrediction
+  MatchdaySummary, MatchRecap, Session, MatchWithPrediction
 } from '@/types'
 import { getSession } from '@/lib/utils'
 import { computeLeaderboard, sortLeaderboard } from '@/lib/scoring'
@@ -26,6 +26,7 @@ interface Props {
   predictions: MatchPrediction[]
   tournamentPredictions: TournamentPrediction[]
   summaries: MatchdaySummary[]
+  recaps: MatchRecap[]
 }
 
 export function LeagueHub({
@@ -35,6 +36,7 @@ export function LeagueHub({
   predictions: initialPredictions,
   tournamentPredictions: initialTournamentPredictions,
   summaries: initialSummaries,
+  recaps: initialRecaps,
 }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('leaderboard')
@@ -48,6 +50,7 @@ export function LeagueHub({
   const [predictions, setPredictions] = useState(initialPredictions)
   const [tournamentPredictions] = useState(initialTournamentPredictions)
   const [summaries] = useState(initialSummaries)
+  const [recaps] = useState(initialRecaps)
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
@@ -235,6 +238,7 @@ export function LeagueHub({
             matches={matchesWithPredictions}
             playerId={session.player_id}
             sessionToken={session.session_token}
+            recaps={recaps}
             isAdmin={session.is_admin}
             canImportFixtures={league.sync_source === 'api'}
             onImportFixtures={handleImportFixtures}

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LeagueHub } from '@/components/layout/LeagueHub'
-import type { League, Player, Match, MatchPrediction, TournamentPrediction, MatchdaySummary } from '@/types'
+import type { League, Player, Match, MatchPrediction, TournamentPrediction, MatchdaySummary, MatchRecap } from '@/types'
 
 interface Props { params: Promise<{ code: string }> }
 
@@ -33,6 +33,7 @@ export default async function LeaguePage({ params }: Props) {
     { data: predictions },
     { data: tournamentPredictions },
     { data: summaries },
+    { data: recaps },
   ] = await Promise.all([
     supabase
       .from('matches')
@@ -45,6 +46,7 @@ export default async function LeaguePage({ params }: Props) {
       : Promise.resolve({ data: [] }),
     supabase.from('tournament_predictions').select('*').eq('league_id', league.id),
     supabase.from('matchday_summaries').select('*').eq('league_id', league.id).order('match_day'),
+    supabase.from('match_recaps').select('*').eq('league_id', league.id),
   ])
 
   return (
@@ -55,6 +57,7 @@ export default async function LeaguePage({ params }: Props) {
       predictions={(predictions ?? []) as MatchPrediction[]}
       tournamentPredictions={(tournamentPredictions ?? []) as TournamentPrediction[]}
       summaries={(summaries ?? []) as MatchdaySummary[]}
+      recaps={(recaps ?? []) as MatchRecap[]}
     />
   )
 }

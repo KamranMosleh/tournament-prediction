@@ -130,6 +130,16 @@ CREATE TABLE IF NOT EXISTS matchday_summaries (
   UNIQUE (league_id, match_day)
 );
 
+CREATE TABLE IF NOT EXISTS match_recaps (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  league_id     UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+  match_id      UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  headline      TEXT NOT NULL,
+  roasts        JSONB NOT NULL DEFAULT '[]',
+  generated_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (league_id, match_id)
+);
+
 -- ============================================================
 -- INDEXES
 -- ============================================================
@@ -144,6 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_matches_kickoff      ON matches(kickoff_time);
 CREATE INDEX IF NOT EXISTS idx_matches_external_id  ON matches(external_match_id);
 CREATE INDEX IF NOT EXISTS idx_sync_log_tournament  ON sync_log(tournament_code, synced_at DESC);
 CREATE INDEX IF NOT EXISTS idx_matchday_summaries   ON matchday_summaries(league_id, match_day);
+CREATE INDEX IF NOT EXISTS idx_match_recaps         ON match_recaps(league_id, match_id);
 
 -- ============================================================
 -- SCORING VIEW (multiplied + flat, late-joiner form %)
@@ -334,6 +345,18 @@ END $$;
 
 DO $$ BEGIN
   CREATE POLICY "summaries_insert" ON matchday_summaries FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+ALTER TABLE match_recaps ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "recaps_read"   ON match_recaps FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "recaps_insert" ON match_recaps FOR INSERT WITH CHECK (true);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 

@@ -53,3 +53,68 @@ export function punditsPrompt(
 ): string {
   return `You are a witty football TV pundit. Write a single paragraph (3-4 sentences) recapping Matchday ${matchDay} for a prediction game.\n\nResults: ${results}\nTop leaderboard: ${leaderboard}\n\nName specific players and matches. Highlight the biggest mover. End with a look ahead. Keep it fun and pundit-like.`
 }
+
+export interface PlayerPredictionInput {
+  name: string
+  prediction: string | null  // "2-1" or null
+  points: number
+}
+
+export function matchRecapPrompt(
+  homeTeam: string,
+  awayTeam: string,
+  actualResult: string,
+  players: PlayerPredictionInput[]
+): string {
+  const lines = players
+    .map(p =>
+      p.prediction
+        ? `- ${p.name}: predicted ${p.prediction} → earned ${p.points} pt${p.points !== 1 ? 's' : ''}`
+        : `- ${p.name}: did not predict`
+    )
+    .join('\n')
+
+  return `You are a witty football TV pundit running a friends prediction game. A match just ended.
+
+Match: ${homeTeam} vs ${awayTeam}
+Actual result: ${actualResult}
+
+Player predictions:
+${lines}
+
+Respond ONLY with a valid JSON object — no markdown, no explanation, nothing else — in exactly this format:
+{
+  "headline": "One punchy funny sentence recapping the result (max 20 words)",
+  "roasts": [
+    {
+      "player_name": "<exact name from the list above>",
+      "roast": "<One playful sentence, max 25 words. Mention their predicted score vs actual. Warm pub-banter tone, never cruel or offensive.>"
+    }
+  ]
+}
+
+Rules:
+- Include every player in roasts, same order as the list above
+- Players who did not predict should get a gentle ribbing about not showing up
+- Tone: friendly football pub banter — fun, never mean or personal
+- Do NOT output any text outside the JSON object`
+}
+
+/**
+ * Like groqComplete but parses and returns typed JSON.
+ * Returns null on any failure (Groq error, parse error, schema mismatch).
+ */
+export async function groqCompleteJSON<T>(prompt: string, maxTokens = 600): Promise<T | null> {
+  const raw = await groqComplete(prompt, maxTokens)
+  if (!raw) return null
+  try {
+    // Strip optional markdown code fences the model sometimes adds
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim()
+    return JSON.parse(cleaned) as T
+  } catch {
+    return null
+  }
+}

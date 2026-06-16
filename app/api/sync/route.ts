@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoGeneratePunditSummariesForTournament } from '@/lib/ai-jobs'
 import type { MatchStage, MatchStatus } from '@/types'
 
 const FD_BASE = 'https://api.football-data.org/v4'
@@ -114,7 +115,14 @@ export async function POST(req: NextRequest) {
       duration_ms: Date.now() - start,
     })
 
-    return NextResponse.json({ ok: true, matchesUpdated, matchesLocked, matchesFinished })
+    // Auto-generate pundit recaps for any fully completed matchdays.
+    const aiSummaries = await autoGeneratePunditSummariesForTournament(
+      tournamentCode,
+      season,
+      supabase
+    )
+
+    return NextResponse.json({ ok: true, matchesUpdated, matchesLocked, matchesFinished, aiSummaries })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error'
     try {

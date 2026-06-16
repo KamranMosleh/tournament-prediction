@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { autoGeneratePunditSummariesForLeagueMatchDay } from '@/lib/ai-jobs'
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,7 +40,11 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: 'Failed to save result' }, { status: 500 })
 
-    return NextResponse.json({ match: data })
+    const aiSummary = match.match_day
+      ? await autoGeneratePunditSummariesForLeagueMatchDay(player.league_id, match.match_day, supabase)
+      : { status: 'skipped', reason: 'match day unavailable' }
+
+    return NextResponse.json({ match: data, aiSummary })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

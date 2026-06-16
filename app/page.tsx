@@ -45,6 +45,13 @@ export default function HomePage() {
       </div>
 
       <div className="w-full max-w-sm flex flex-col gap-3">
+        {/* Info banner */}
+        <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p style={{ color: 'var(--text-muted)' }}>
+            💾 All your predictions are saved automatically. Rejoin with the same <strong>league code + display name</strong> on any device to access your picks and scores.
+          </p>
+        </div>
+
         {/* Your leagues */}
         {leagueList.length > 0 && (
           <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>

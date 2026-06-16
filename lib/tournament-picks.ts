@@ -1,6 +1,6 @@
 import type { Match } from '@/types'
 
-interface PickDeadlines {
+export interface PickDeadlines {
   firstKickoff: string | null
   roundOf16Kickoff: string | null
   quarterFinalKickoff: string | null

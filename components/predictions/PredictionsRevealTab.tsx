@@ -42,6 +42,15 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Visibility rules explanation */}
+      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-subtle)' }}>
+        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>How reveal works: </span>
+        While a match is open, only anonymous score/outcome totals are shown — no names.
+        Once a match locks at kick-off, named picks become visible.
+        After a match finishes, points earned per player are shown alongside their pick.
+        Tournament winner and top-scorer picks are always visible to everyone in the league.
+      </p>
+
       <section className="rounded-xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         <h3 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
           Tournament Picks (Visible to League)

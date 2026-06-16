@@ -3,6 +3,11 @@
 import { useState } from 'react'
 import { Trophy, User, Check, Loader2, Lock } from 'lucide-react'
 import type { Player, TournamentPrediction } from '@/types'
+import {
+  type PickDeadlines,
+  topScorerPointsForSubmittedAt,
+  winnerPointsForSubmittedAt,
+} from '@/lib/tournament-picks'
 
 const WORLD_CUP_2026_TEAMS = [
   'Argentina', 'Australia', 'Belgium', 'Brazil', 'Cameroon', 'Canada',
@@ -22,6 +27,7 @@ interface Props {
   playerId: string
   leagueId: string
   sessionToken: string
+  pickDeadlines: PickDeadlines
   winnerLocked: boolean
   topScorerLocked: boolean
   finalKickoff: string | null
@@ -37,6 +43,7 @@ export function TournamentPredictionsForm({
   playerId,
   leagueId,
   sessionToken,
+  pickDeadlines,
   winnerLocked,
   topScorerLocked,
   finalKickoff,
@@ -85,6 +92,12 @@ export function TournamentPredictionsForm({
   }
 
   const allLocked = winnerLocked && topScorerLocked
+  const nowIso = new Date().toISOString()
+  const winnerKeepPoints = winnerPointsForSubmittedAt(existing?.winner_submitted_at ?? existing?.submitted_at, pickDeadlines)
+  const winnerChangePoints = winnerPointsForSubmittedAt(nowIso, pickDeadlines)
+  const scorerKeepPoints = topScorerPointsForSubmittedAt(existing?.top_scorer_submitted_at ?? existing?.submitted_at, pickDeadlines)
+  const scorerChangePoints = topScorerPointsForSubmittedAt(nowIso, pickDeadlines)
+
   const leaguePickRows = players.map(p => {
     const pick = allPredictions.find(tp => tp.player_id === p.id)
     return {
@@ -126,6 +139,10 @@ export function TournamentPredictionsForm({
         </div>
         <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
           Winner stays open until final kick-off. Top scorer locks at semi-final kick-off.
+        </p>
+        <p className="text-xs mb-6 px-3 py-2 rounded-lg" style={{ background: 'rgba(210,153,34,0.08)', border: '1px solid rgba(210,153,34,0.2)', color: 'var(--gold)' }}>
+          ⏰ <strong>Pick early, score more.</strong> If your current saved picks are correct: Winner = {winnerKeepPoints} pts, Top scorer = {scorerKeepPoints} pts.
+          If you change and save now (and are correct): Winner = {winnerChangePoints} pts, Top scorer = {scorerChangePoints} pts.
         </p>
 
       {/* Winner select */}
@@ -205,6 +222,11 @@ export function TournamentPredictionsForm({
         {winnerSaveState === 'error' && (
           <p className="text-xs text-center mt-2" style={{ color: 'var(--red)' }}>Failed to save winner.</p>
         )}
+          {!winnerLocked && (
+            <p className="text-xs mt-2 text-center" style={{ color: 'var(--text-subtle)' }}>
+              Correct winner points: keep current = {winnerKeepPoints}, change now = {winnerChangePoints}.
+            </p>
+          )}
       </div>
 
         {/* Golden Boot */}
@@ -250,6 +272,11 @@ export function TournamentPredictionsForm({
           </button>
           {scorerSaveState === 'error' && (
             <p className="text-xs text-center mt-2" style={{ color: 'var(--red)' }}>Failed to save top scorer.</p>
+          )}
+          {!topScorerLocked && (
+            <p className="text-xs mt-2 text-center" style={{ color: 'var(--text-subtle)' }}>
+              Correct top scorer points: keep current = {scorerKeepPoints}, change now = {scorerChangePoints}.
+            </p>
           )}
         </div>
       </div>

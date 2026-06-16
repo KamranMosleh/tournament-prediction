@@ -25,7 +25,11 @@ export function PredictionRevealPanel({ match, reveal }: Props) {
           style={{ color: 'var(--text-muted)' }}
         >
           <span>
-            {isOpen ? 'Prediction Sentiment (Anonymous)' : 'Prediction Reveal'}
+            {isOpen
+              ? 'Prediction Sentiment — names hidden until kick-off'
+              : match.status === 'finished'
+                ? 'Prediction Reveal — with points'
+                : 'Prediction Reveal — locked picks'}
           </span>
           <span style={{ color: 'var(--text-subtle)' }}>{expanded ? '▲' : '▼'}</span>
         </button>

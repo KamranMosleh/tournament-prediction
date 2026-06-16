@@ -117,6 +117,32 @@ supabase/
   functions/sync-matches/     Edge Function for cron scheduling
 ```
 
+## App workflow
+
+### Creating and joining
+1. Open the home page and create a league — you become the admin and get a 6-character invite code.
+2. Share the code or invite link with friends.
+3. Friends open the join page, enter the code and a display name, and land directly in the league.
+4. No accounts or passwords needed — identity is a session token stored in your browser.
+
+### Making predictions
+1. Go to the **Matches** tab before kick-off and enter a predicted score for each open match.
+2. Predictions save automatically on blur and can be changed any number of times while the match is open.
+3. All picks lock the moment a match kicks off — no edits after that.
+4. Go to **My Picks** to set your tournament winner and Golden Boot pick. These stay editable until their respective deadlines (semi-final start for top scorer, final start for winner).
+
+### Seeing others' picks
+- While a match is **open**: the **Prediction Reveal** panel inside each match card (and the **Reveal** tab) shows anonymous aggregate sentiment — how many players picked each outcome and the most popular scores, but no names.
+- Once a match **locks**: named picks are revealed so you can see exactly who predicted what.
+- Once a match **finishes**: points earned per player appear next to their pick.
+- **Tournament picks** (winner + top scorer) are always visible to everyone in the league.
+
+### Scoring and standings
+1. Points appear on the **Standings** tab in real time as results come in.
+2. Exact score = 3 pts; correct outcome = 1 pt; wrong = 0. Knockout stages multiply the base points.
+3. Tournament picks score a time-weighted bonus — earlier correct picks earn more.
+4. An AI-generated matchday recap appears at the top of Standings after each matchday completes, and a per-match roast recap appears on finished match cards.
+
 ## Docs
 
 Full architecture, data model, feature spec, and API setup guides live in `docs/`.

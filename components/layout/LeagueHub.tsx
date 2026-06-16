@@ -287,6 +287,7 @@ export function LeagueHub({
             playerId={session.player_id}
             leagueId={league.id}
             sessionToken={session.session_token}
+            pickDeadlines={deadlines}
             winnerLocked={winnerLocked}
             topScorerLocked={topScorerLocked}
             finalKickoff={deadlines.finalKickoff}

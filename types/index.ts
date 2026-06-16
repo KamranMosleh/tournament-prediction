@@ -93,6 +93,30 @@ export interface MatchRecap {
   generated_at: string
 }
 
+export interface MatchRevealAggregate {
+  total_players: number
+  predicted_count: number
+  missing_count: number
+  top_scores: Array<{ score: string; count: number }>
+  outcome_counts: {
+    home_win: number
+    draw: number
+    away_win: number
+  }
+}
+
+export interface MatchRevealEntry {
+  player_id: string
+  player_name: string
+  score: string
+  points: number | null
+}
+
+export interface MatchRevealData {
+  aggregate: MatchRevealAggregate
+  entries: MatchRevealEntry[]
+}
+
 export interface PlayerScore {
   player_id: string
   display_name: string

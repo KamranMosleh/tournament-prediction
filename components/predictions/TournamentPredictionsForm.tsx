@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Trophy, User, Check, Loader2, Lock } from 'lucide-react'
-import type { TournamentPrediction } from '@/types'
+import type { Player, TournamentPrediction } from '@/types'
 
 const WORLD_CUP_2026_TEAMS = [
   'Argentina', 'Australia', 'Belgium', 'Brazil', 'Cameroon', 'Canada',
@@ -17,6 +17,8 @@ const WORLD_CUP_2026_TEAMS = [
 
 interface Props {
   existing: TournamentPrediction | null
+  allPredictions: TournamentPrediction[]
+  players: Player[]
   playerId: string
   leagueId: string
   sessionToken: string
@@ -30,6 +32,8 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 export function TournamentPredictionsForm({
   existing,
+  allPredictions,
+  players,
   playerId,
   leagueId,
   sessionToken,
@@ -81,34 +85,48 @@ export function TournamentPredictionsForm({
   }
 
   const allLocked = winnerLocked && topScorerLocked
+  const leaguePickRows = players.map(p => {
+    const pick = allPredictions.find(tp => tp.player_id === p.id)
+    return {
+      player: p.display_name,
+      winner: pick?.winner_team || '—',
+      scorer: pick?.top_scorer_name || '—',
+    }
+  })
+
   if (allLocked) {
     return (
-      <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <Lock size={16} style={{ color: 'var(--gold)' }} />
-          <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Tournament Picks — Fully Locked</h3>
-        </div>
-        {existing ? (
-          <div className="flex flex-col gap-3">
-            <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={existing.winner_team || 'Not submitted'} />
-            <PredRow icon={<User size={14} style={{ color: 'var(--blue)' }} />} label="Golden Boot" value={existing.top_scorer_name || 'Not submitted'} />
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Lock size={16} style={{ color: 'var(--gold)' }} />
+            <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Tournament Picks — Fully Locked</h3>
           </div>
-        ) : (
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No tournament picks submitted.</p>
-        )}
+          {existing ? (
+            <div className="flex flex-col gap-3">
+              <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={existing.winner_team || 'Not submitted'} />
+              <PredRow icon={<User size={14} style={{ color: 'var(--blue)' }} />} label="Golden Boot" value={existing.top_scorer_name || 'Not submitted'} />
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No tournament picks submitted.</p>
+          )}
+        </div>
+
+        <LeaguePicksCard rows={leaguePickRows} />
       </div>
     )
   }
 
   return (
-    <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-      <div className="flex items-center gap-2 mb-1">
-        <Trophy size={16} style={{ color: 'var(--gold)' }} />
-        <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Tournament Picks</h3>
-      </div>
-      <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
-        Winner stays open until final kick-off. Top scorer locks at semi-final kick-off.
-      </p>
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-2 mb-1">
+          <Trophy size={16} style={{ color: 'var(--gold)' }} />
+          <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Tournament Picks</h3>
+        </div>
+        <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+          Winner stays open until final kick-off. Top scorer locks at semi-final kick-off.
+        </p>
 
       {/* Winner select */}
       <div className="mb-5">
@@ -189,51 +207,54 @@ export function TournamentPredictionsForm({
         )}
       </div>
 
-      {/* Golden Boot */}
-      <div>
-        <label className="text-xs font-medium uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-          ⚽ Golden Boot (Top Scorer) — up to 10 pts
-        </label>
-        {topScorerLocked && (
-          <p className="text-xs mb-2" style={{ color: 'var(--gold)' }}>
-            Locked at semi-final kick-off{semiFinalKickoff ? ` (${fmt(semiFinalKickoff)})` : ''}
-          </p>
-        )}
-        <input
-          type="text"
-          placeholder="Player name…"
-          value={scorer}
-          onChange={e => setScorer(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
-          style={{
-            background: 'var(--bg)',
-            border: '1.5px solid var(--border)',
-            color: 'var(--text)',
-            opacity: topScorerLocked ? 0.7 : 1,
-            cursor: topScorerLocked ? 'not-allowed' : 'text',
-          }}
-          disabled={topScorerLocked}
-          onFocus={e => { e.target.style.borderColor = 'var(--accent)' }}
-          onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
-        />
-        <button
-          onClick={saveTopScorer}
-          disabled={!scorer || topScorerLocked || scorerSaveState === 'saving'}
-          className="mt-3 w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all"
-          style={{
-            background: !scorer || topScorerLocked ? 'var(--surface-2)' : 'var(--accent)',
-            color: !scorer || topScorerLocked ? 'var(--text-subtle)' : '#000',
-            cursor: !scorer || topScorerLocked ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {scorerSaveState === 'saving' && <Loader2 size={14} className="animate-spin" />}
-          {scorerSaveState === 'saved' && <Check size={14} />}
-          {scorerSaveState === 'saved' ? 'Top scorer saved!' : scorerSaveState === 'saving' ? 'Saving…' : 'Save top scorer'}
-        </button>
-        {scorerSaveState === 'error' && (
-          <p className="text-xs text-center mt-2" style={{ color: 'var(--red)' }}>Failed to save top scorer.</p>
-        )}
+        {/* Golden Boot */}
+        <div>
+          <label className="text-xs font-medium uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
+            ⚽ Golden Boot (Top Scorer) — up to 10 pts
+          </label>
+          {topScorerLocked && (
+            <p className="text-xs mb-2" style={{ color: 'var(--gold)' }}>
+              Locked at semi-final kick-off{semiFinalKickoff ? ` (${fmt(semiFinalKickoff)})` : ''}
+            </p>
+          )}
+          <input
+            type="text"
+            placeholder="Player name…"
+            value={scorer}
+            onChange={e => setScorer(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
+            style={{
+              background: 'var(--bg)',
+              border: '1.5px solid var(--border)',
+              color: 'var(--text)',
+              opacity: topScorerLocked ? 0.7 : 1,
+              cursor: topScorerLocked ? 'not-allowed' : 'text',
+            }}
+            disabled={topScorerLocked}
+            onFocus={e => { e.target.style.borderColor = 'var(--accent)' }}
+            onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
+          />
+          <button
+            onClick={saveTopScorer}
+            disabled={!scorer || topScorerLocked || scorerSaveState === 'saving'}
+            className="mt-3 w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+            style={{
+              background: !scorer || topScorerLocked ? 'var(--surface-2)' : 'var(--accent)',
+              color: !scorer || topScorerLocked ? 'var(--text-subtle)' : '#000',
+              cursor: !scorer || topScorerLocked ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {scorerSaveState === 'saving' && <Loader2 size={14} className="animate-spin" />}
+            {scorerSaveState === 'saved' && <Check size={14} />}
+            {scorerSaveState === 'saved' ? 'Top scorer saved!' : scorerSaveState === 'saving' ? 'Saving…' : 'Save top scorer'}
+          </button>
+          {scorerSaveState === 'error' && (
+            <p className="text-xs text-center mt-2" style={{ color: 'var(--red)' }}>Failed to save top scorer.</p>
+          )}
+        </div>
       </div>
+
+      <LeaguePicksCard rows={leaguePickRows} />
     </div>
   )
 }
@@ -254,6 +275,27 @@ function PredRow({ icon, label, value }: { icon: React.ReactNode; label: string;
       {icon}
       <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
       <span className="ml-auto font-medium text-sm" style={{ color: 'var(--text)' }}>{value}</span>
+    </div>
+  )
+}
+
+function LeaguePicksCard({ rows }: { rows: Array<{ player: string; winner: string; scorer: string }> }) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+      <h4 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
+        League picks (visible to everyone)
+      </h4>
+      <div className="flex flex-col gap-2">
+        {rows.map(row => (
+          <div key={row.player} className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{row.player}</span>
+            {' · '}
+            Winner: {row.winner}
+            {' · '}
+            Top scorer: {row.scorer}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

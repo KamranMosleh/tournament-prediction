@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { BarChart2, Calendar, Trophy, Shield, Send, Home } from 'lucide-react'
+import { BarChart2, Calendar, Trophy, Shield, Send, Home, Eye } from 'lucide-react'
 import type {
   League, Player, Match, MatchPrediction, TournamentPrediction,
   MatchdaySummary, MatchRecap, Session, MatchWithPrediction
@@ -14,10 +14,12 @@ import { Leaderboard } from '@/components/leaderboard/Leaderboard'
 import { MatchList } from '@/components/matches/MatchList'
 import { TournamentPredictionsForm } from '@/components/predictions/TournamentPredictionsForm'
 import { ResultsForm } from '@/components/predictions/ResultsForm'
+import { PredictionsRevealTab } from '@/components/predictions/PredictionsRevealTab'
 import { createClient } from '@/lib/supabase/client'
 import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
+import { buildMatchRevealData } from '@/lib/prediction-reveal'
 
-type Tab = 'leaderboard' | 'matches' | 'picks' | 'results'
+type Tab = 'leaderboard' | 'matches' | 'reveal' | 'picks' | 'results'
 
 interface Props {
   league: League
@@ -125,6 +127,27 @@ export function LeagueHub({
   const winnerLocked = isDeadlinePassed(deadlines.finalKickoff)
   const topScorerLocked = isDeadlinePassed(deadlines.semiFinalKickoff)
 
+  const predictionsByMatch = useMemo(() => {
+    const grouped = new Map<string, MatchPrediction[]>()
+    for (const p of predictions) {
+      const arr = grouped.get(p.match_id) ?? []
+      arr.push(p)
+      grouped.set(p.match_id, arr)
+    }
+    return grouped
+  }, [predictions])
+
+  const revealMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof buildMatchRevealData>>()
+    for (const match of matches) {
+      map.set(
+        match.id,
+        buildMatchRevealData(match, players, predictionsByMatch.get(match.id) ?? [], league.scoring_mode)
+      )
+    }
+    return map
+  }, [matches, players, predictionsByMatch, league.scoring_mode])
+
   const handleImportFixtures = async () => {
     if (syncState === 'syncing') return
     setSyncState('syncing')
@@ -163,6 +186,7 @@ export function LeagueHub({
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'leaderboard', label: 'Standings', icon: <BarChart2 size={13} /> },
     { id: 'matches',     label: 'Matches',   icon: <Calendar size={13} /> },
+    { id: 'reveal',      label: 'Reveal',    icon: <Eye size={13} /> },
     { id: 'picks',       label: 'My Picks',  icon: <Trophy size={13} /> },
     ...(session.is_admin && league.sync_source === 'manual'
       ? [{ id: 'results' as Tab, label: 'Results', icon: <Shield size={13} /> }]
@@ -239,6 +263,7 @@ export function LeagueHub({
             playerId={session.player_id}
             sessionToken={session.session_token}
             recaps={recaps}
+            reveals={revealMap}
             isAdmin={session.is_admin}
             canImportFixtures={league.sync_source === 'api'}
             onImportFixtures={handleImportFixtures}
@@ -246,9 +271,19 @@ export function LeagueHub({
             syncMessage={syncMessage}
           />
         )}
+        {tab === 'reveal' && (
+          <PredictionsRevealTab
+            matches={matches}
+            reveals={revealMap}
+            players={players}
+            tournamentPredictions={tournamentPredictions}
+          />
+        )}
         {tab === 'picks' && (
           <TournamentPredictionsForm
             existing={myTournamentPick}
+            allPredictions={tournamentPredictions}
+            players={players}
             playerId={session.player_id}
             leagueId={league.id}
             sessionToken={session.session_token}

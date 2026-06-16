@@ -55,6 +55,8 @@ Players can submit/update two tournament picks until their lock deadlines:
 - Winner team (locks at final kick-off)
 - Golden Boot / top scorer (locks at semi-final kick-off)
 
+Tournament picks are visible to all league members.
+
 Earlier correct picks are worth more points.
 
 Winner pick points by submission window:
@@ -73,6 +75,12 @@ Top scorer pick points by submission window:
 - Before Semi-finals start: 4 points
 
 If a pick is updated later, the latest submission timestamp is used for that pick's bonus tier.
+
+### Prediction visibility rules
+
+- Open matches: everyone sees anonymous aggregate sentiment only (most-picked scores + outcome split).
+- Locked/finished matches: named per-player score picks are revealed to the league.
+- Finished matches: revealed picks also show points earned for that match.
 
 ## Project layout
 

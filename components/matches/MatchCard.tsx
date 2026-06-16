@@ -2,16 +2,18 @@
 
 import { useState, useCallback } from 'react'
 import { Check, Loader2, MapPin, Sparkles } from 'lucide-react'
-import type { MatchWithPrediction, AIDifficulty, MatchRecap } from '@/types'
+import type { MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData } from '@/types'
 import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
+import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPanel'
 
 interface Props {
   match: MatchWithPrediction
   playerId: string
   sessionToken: string
   recap?: MatchRecap | null
+  reveal?: MatchRevealData
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -22,7 +24,7 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, sessionToken, recap }: Props) {
+export function MatchCard({ match, playerId, sessionToken, recap, reveal }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -132,6 +134,9 @@ export function MatchCard({ match, playerId, sessionToken, recap }: Props) {
           Final: {match.home_score}–{match.away_score}
         </div>
       )}
+
+      {/* Prediction reveal: aggregate while open, named picks after lock */}
+      {reveal && <PredictionRevealPanel match={match} reveal={reveal} />}
 
       {/* Per-player roast recap (shown after match finishes, once generated) */}
       {recap && match.status === 'finished' && (

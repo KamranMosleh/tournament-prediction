@@ -72,6 +72,9 @@ export default function JoinPage() {
               onFocus={e => { e.target.style.borderColor = 'var(--accent)' }}
               onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
             />
+            <p className="text-xs mt-2" style={{ color: 'var(--text-subtle)' }}>
+              💡 Tip: Use the same name to recover your picks on another device or browser.
+            </p>
           </div>
 
           {error && <p className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}

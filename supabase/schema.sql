@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_cron";
 -- TABLES
 -- ============================================================
 
-CREATE TABLE leagues (
+CREATE TABLE IF NOT EXISTS leagues (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name              TEXT NOT NULL CHECK (char_length(name) BETWEEN 3 AND 40),
   invite_code       TEXT NOT NULL UNIQUE,
@@ -28,7 +28,7 @@ CREATE TABLE leagues (
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE players (
+CREATE TABLE IF NOT EXISTS players (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   league_id         UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
   display_name      TEXT NOT NULL CHECK (char_length(display_name) BETWEEN 2 AND 20),
@@ -39,11 +39,15 @@ CREATE TABLE players (
   UNIQUE (league_id, display_name)
 );
 
-ALTER TABLE leagues
-  ADD CONSTRAINT leagues_created_by_fkey
-  FOREIGN KEY (created_by) REFERENCES players(id) ON DELETE SET NULL;
+DO $$ 
+BEGIN
+  ALTER TABLE leagues
+    ADD CONSTRAINT leagues_created_by_fkey
+    FOREIGN KEY (created_by) REFERENCES players(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE matches (
+CREATE TABLE IF NOT EXISTS matches (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tournament_code   TEXT NOT NULL DEFAULT 'WC',
   tournament_season INTEGER NOT NULL DEFAULT 2026,
@@ -70,7 +74,7 @@ CREATE TABLE matches (
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE match_predictions (
+CREATE TABLE IF NOT EXISTS match_predictions (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id    UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   match_id     UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
@@ -80,7 +84,7 @@ CREATE TABLE match_predictions (
   UNIQUE (player_id, match_id)
 );
 
-CREATE TABLE tournament_predictions (
+CREATE TABLE IF NOT EXISTS tournament_predictions (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id        UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   league_id        UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
@@ -105,7 +109,7 @@ ALTER TABLE tournament_predictions
 ALTER TABLE tournament_predictions
   ALTER COLUMN top_scorer_name SET DEFAULT '';
 
-CREATE TABLE sync_log (
+CREATE TABLE IF NOT EXISTS sync_log (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tournament_code   TEXT NOT NULL,
   tournament_season INTEGER NOT NULL,
@@ -117,7 +121,7 @@ CREATE TABLE sync_log (
   duration_ms       INTEGER
 );
 
-CREATE TABLE matchday_summaries (
+CREATE TABLE IF NOT EXISTS matchday_summaries (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   league_id     UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
   match_day     INTEGER NOT NULL,
@@ -130,16 +134,16 @@ CREATE TABLE matchday_summaries (
 -- INDEXES
 -- ============================================================
 
-CREATE INDEX idx_players_league       ON players(league_id);
-CREATE INDEX idx_players_token        ON players(session_token);
-CREATE INDEX idx_predictions_player   ON match_predictions(player_id);
-CREATE INDEX idx_predictions_match    ON match_predictions(match_id);
-CREATE INDEX idx_matches_tournament   ON matches(tournament_code, tournament_season);
-CREATE INDEX idx_matches_status       ON matches(status);
-CREATE INDEX idx_matches_kickoff      ON matches(kickoff_time);
-CREATE INDEX idx_matches_external_id  ON matches(external_match_id);
-CREATE INDEX idx_sync_log_tournament  ON sync_log(tournament_code, synced_at DESC);
-CREATE INDEX idx_matchday_summaries   ON matchday_summaries(league_id, match_day);
+CREATE INDEX IF NOT EXISTS idx_players_league       ON players(league_id);
+CREATE INDEX IF NOT EXISTS idx_players_token        ON players(session_token);
+CREATE INDEX IF NOT EXISTS idx_predictions_player   ON match_predictions(player_id);
+CREATE INDEX IF NOT EXISTS idx_predictions_match    ON match_predictions(match_id);
+CREATE INDEX IF NOT EXISTS idx_matches_tournament   ON matches(tournament_code, tournament_season);
+CREATE INDEX IF NOT EXISTS idx_matches_status       ON matches(status);
+CREATE INDEX IF NOT EXISTS idx_matches_kickoff      ON matches(kickoff_time);
+CREATE INDEX IF NOT EXISTS idx_matches_external_id  ON matches(external_match_id);
+CREATE INDEX IF NOT EXISTS idx_sync_log_tournament  ON sync_log(tournament_code, synced_at DESC);
+CREATE INDEX IF NOT EXISTS idx_matchday_summaries   ON matchday_summaries(league_id, match_day);
 
 -- ============================================================
 -- SCORING VIEW (multiplied + flat, late-joiner form %)
@@ -240,49 +244,141 @@ ALTER TABLE tournament_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sync_log               ENABLE ROW LEVEL SECURITY;
 
 -- Public reads
-CREATE POLICY "leagues_read"  ON leagues  FOR SELECT USING (true);
-CREATE POLICY "matches_read"  ON matches  FOR SELECT USING (true);
-CREATE POLICY "players_read"  ON players  FOR SELECT USING (true);
-CREATE POLICY "preds_read"    ON match_predictions      FOR SELECT USING (true);
-CREATE POLICY "tourney_read"  ON tournament_predictions FOR SELECT USING (true);
-CREATE POLICY "sync_read"     ON sync_log FOR SELECT USING (true);
+DO $$ BEGIN
+  CREATE POLICY "leagues_read"  ON leagues  FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "matches_read"  ON matches  FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "players_read"  ON players  FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "preds_read"    ON match_predictions      FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "tourney_read"  ON tournament_predictions FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "sync_read"     ON sync_log FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Writes (service role key enforces auth in API routes)
-CREATE POLICY "leagues_write" ON leagues  FOR INSERT WITH CHECK (true);
-CREATE POLICY "players_write" ON players  FOR INSERT WITH CHECK (true);
-CREATE POLICY "players_update" ON players FOR UPDATE USING (true);
-CREATE POLICY "preds_insert"  ON match_predictions FOR INSERT WITH CHECK (true);
-CREATE POLICY "preds_update"  ON match_predictions FOR UPDATE USING (true);
-CREATE POLICY "tourney_insert" ON tournament_predictions FOR INSERT WITH CHECK (true);
-CREATE POLICY "tourney_update" ON tournament_predictions FOR UPDATE USING (true);
-CREATE POLICY "matches_insert" ON matches FOR INSERT WITH CHECK (true);
-CREATE POLICY "matches_update" ON matches FOR UPDATE USING (true);
-CREATE POLICY "sync_insert"   ON sync_log FOR INSERT WITH CHECK (true);
+DO $$ BEGIN
+  CREATE POLICY "leagues_write" ON leagues  FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "players_write" ON players  FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "players_update" ON players FOR UPDATE USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "preds_insert"  ON match_predictions FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "preds_update"  ON match_predictions FOR UPDATE USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "tourney_insert" ON tournament_predictions FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "tourney_update" ON tournament_predictions FOR UPDATE USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "matches_insert" ON matches FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "matches_update" ON matches FOR UPDATE USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "sync_insert"   ON sync_log FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE matchday_summaries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "summaries_read"   ON matchday_summaries FOR SELECT USING (true);
-CREATE POLICY "summaries_insert" ON matchday_summaries FOR INSERT WITH CHECK (true);
+
+DO $$ BEGIN
+  CREATE POLICY "summaries_read"   ON matchday_summaries FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "summaries_insert" ON matchday_summaries FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================================
 -- CRON: lock matches at kick-off (runs every minute)
 -- ============================================================
 
-SELECT cron.schedule(
-  'lock-started-matches',
-  '* * * * *',
-  $$
-    UPDATE matches
-    SET status = 'locked'
-    WHERE status = 'open' AND kickoff_time <= NOW();
-  $$
-);
+DO $$ BEGIN
+  PERFORM cron.schedule(
+    'lock-started-matches',
+    '* * * * *',
+    $sql$
+      UPDATE matches
+      SET status = 'locked'
+      WHERE status = 'open' AND kickoff_time <= NOW();
+    $sql$
+  );
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- ============================================================
 -- REALTIME
 -- ============================================================
 
-ALTER PUBLICATION supabase_realtime ADD TABLE match_predictions;
-ALTER PUBLICATION supabase_realtime ADD TABLE matches;
-ALTER PUBLICATION supabase_realtime ADD TABLE players;
-ALTER PUBLICATION supabase_realtime ADD TABLE tournament_predictions;
-ALTER PUBLICATION supabase_realtime ADD TABLE matchday_summaries;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE match_predictions;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE matches;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE players;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE tournament_predictions;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE matchday_summaries;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

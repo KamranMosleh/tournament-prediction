@@ -31,6 +31,49 @@ npm run dev
 | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) — free |
 | `CRON_SECRET` | Vercel sets this automatically (see Vercel docs) |
 
+## Game rules
+
+### Match predictions
+
+- Exact score: 3 points
+- Correct outcome (win/draw/loss): 1 point
+- Wrong outcome: 0 points
+
+In `multiplied` mode, knockout matches apply stage multipliers:
+
+- Group: x1
+- Round of 16: x2
+- Quarter-final: x3
+- Semi-final: x4
+- Third place: x4
+- Final: x5
+
+### Tournament picks
+
+Players can submit/update two tournament picks until their lock deadlines:
+
+- Winner team (locks at final kick-off)
+- Golden Boot / top scorer (locks at semi-final kick-off)
+
+Earlier correct picks are worth more points.
+
+Winner pick points by submission window:
+
+- Before first tournament kick-off: 15 points
+- Before Round of 16 starts: 12 points
+- Before Quarter-finals start: 9 points
+- Before Semi-finals start: 6 points
+- Before Final starts: 3 points
+
+Top scorer pick points by submission window:
+
+- Before first tournament kick-off: 10 points
+- Before Round of 16 starts: 8 points
+- Before Quarter-finals start: 6 points
+- Before Semi-finals start: 4 points
+
+If a pick is updated later, the latest submission timestamp is used for that pick's bonus tier.
+
 ## Project layout
 
 ```

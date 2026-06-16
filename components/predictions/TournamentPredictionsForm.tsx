@@ -113,7 +113,7 @@ export function TournamentPredictionsForm({
       {/* Winner select */}
       <div className="mb-5">
         <label className="text-xs font-medium uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-          🏆 Tournament Winner — up to 10 pts
+          🏆 Tournament Winner — up to 15 pts
         </label>
         {winnerLocked && (
           <p className="text-xs mb-2" style={{ color: 'var(--gold)' }}>
@@ -192,7 +192,7 @@ export function TournamentPredictionsForm({
       {/* Golden Boot */}
       <div>
         <label className="text-xs font-medium uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-          ⚽ Golden Boot (Top Scorer) — up to 6 pts
+          ⚽ Golden Boot (Top Scorer) — up to 10 pts
         </label>
         {topScorerLocked && (
           <p className="text-xs mb-2" style={{ color: 'var(--gold)' }}>

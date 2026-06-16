@@ -39,11 +39,11 @@ export function winnerPointsForSubmittedAt(submittedAt: string | null | undefine
   if (!submittedAt) return 0
   const t = new Date(submittedAt).getTime()
 
-  if (deadlines.firstKickoff && t < new Date(deadlines.firstKickoff).getTime()) return 10
-  if (deadlines.roundOf16Kickoff && t < new Date(deadlines.roundOf16Kickoff).getTime()) return 8
-  if (deadlines.quarterFinalKickoff && t < new Date(deadlines.quarterFinalKickoff).getTime()) return 6
-  if (deadlines.semiFinalKickoff && t < new Date(deadlines.semiFinalKickoff).getTime()) return 4
-  if (deadlines.finalKickoff && t < new Date(deadlines.finalKickoff).getTime()) return 2
+  if (deadlines.firstKickoff && t < new Date(deadlines.firstKickoff).getTime()) return 15
+  if (deadlines.roundOf16Kickoff && t < new Date(deadlines.roundOf16Kickoff).getTime()) return 12
+  if (deadlines.quarterFinalKickoff && t < new Date(deadlines.quarterFinalKickoff).getTime()) return 9
+  if (deadlines.semiFinalKickoff && t < new Date(deadlines.semiFinalKickoff).getTime()) return 6
+  if (deadlines.finalKickoff && t < new Date(deadlines.finalKickoff).getTime()) return 3
 
   return 0
 }
@@ -52,10 +52,10 @@ export function topScorerPointsForSubmittedAt(submittedAt: string | null | undef
   if (!submittedAt) return 0
   const t = new Date(submittedAt).getTime()
 
-  if (deadlines.firstKickoff && t < new Date(deadlines.firstKickoff).getTime()) return 6
-  if (deadlines.roundOf16Kickoff && t < new Date(deadlines.roundOf16Kickoff).getTime()) return 5
-  if (deadlines.quarterFinalKickoff && t < new Date(deadlines.quarterFinalKickoff).getTime()) return 4
-  if (deadlines.semiFinalKickoff && t < new Date(deadlines.semiFinalKickoff).getTime()) return 3
+  if (deadlines.firstKickoff && t < new Date(deadlines.firstKickoff).getTime()) return 10
+  if (deadlines.roundOf16Kickoff && t < new Date(deadlines.roundOf16Kickoff).getTime()) return 8
+  if (deadlines.quarterFinalKickoff && t < new Date(deadlines.quarterFinalKickoff).getTime()) return 6
+  if (deadlines.semiFinalKickoff && t < new Date(deadlines.semiFinalKickoff).getTime()) return 4
 
   return 0
 }

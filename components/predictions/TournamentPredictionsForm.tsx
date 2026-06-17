@@ -97,6 +97,29 @@ export function TournamentPredictionsForm({
   const winnerChangePoints = winnerPointsForSubmittedAt(nowIso, pickDeadlines)
   const scorerKeepPoints = topScorerPointsForSubmittedAt(existing?.top_scorer_submitted_at ?? existing?.submitted_at, pickDeadlines)
   const scorerChangePoints = topScorerPointsForSubmittedAt(nowIso, pickDeadlines)
+  const winnerSaved = Boolean(existing?.winner_team)
+  const scorerSaved = Boolean(existing?.top_scorer_name)
+  const winnerWouldLosePoints = winnerSaved && winnerKeepPoints > winnerChangePoints
+  const scorerWouldLosePoints = scorerSaved && scorerKeepPoints > scorerChangePoints
+  const livePointParts = [
+    !winnerLocked ? `Winner = ${winnerChangePoints} pts` : null,
+    !topScorerLocked ? `Top scorer = ${scorerChangePoints} pts` : null,
+  ].filter(Boolean).join(', ')
+  const savedPointParts = [
+    winnerSaved ? `Winner = ${winnerKeepPoints} pts` : null,
+    scorerSaved ? `Top scorer = ${scorerKeepPoints} pts` : null,
+  ].filter(Boolean).join(', ')
+  const scoreNote = winnerWouldLosePoints || scorerWouldLosePoints
+    ? `Pick early, score more. Your saved picks keep their original tier: ${savedPointParts}. If you change and save now, correct picks score ${livePointParts}.`
+    : winnerSaved || scorerSaved
+      ? `Your saved picks are still in the current bonus tier. Correct picks saved now score ${livePointParts}; points drop after the next tournament deadline.`
+      : `Correct picks saved now score ${livePointParts}. Points drop after each tournament deadline.`
+  const winnerPointHint = winnerSaved && winnerKeepPoints !== winnerChangePoints
+    ? `Correct winner points: keep current = ${winnerKeepPoints}, change now = ${winnerChangePoints}.`
+    : `Correct winner points: ${winnerChangePoints}.`
+  const scorerPointHint = scorerSaved && scorerKeepPoints !== scorerChangePoints
+    ? `Correct top scorer points: keep current = ${scorerKeepPoints}, change now = ${scorerChangePoints}.`
+    : `Correct top scorer points: ${scorerChangePoints}.`
 
   const leaguePickRows = players.map(p => {
     const pick = allPredictions.find(tp => tp.player_id === p.id)
@@ -141,8 +164,7 @@ export function TournamentPredictionsForm({
           Winner stays open until final kick-off. Top scorer locks at semi-final kick-off.
         </p>
         <p className="text-xs mb-6 px-3 py-2 rounded-lg" style={{ background: 'rgba(210,153,34,0.08)', border: '1px solid rgba(210,153,34,0.2)', color: 'var(--gold)' }}>
-          ⏰ <strong>Pick early, score more.</strong> If your current saved picks are correct: Winner = {winnerKeepPoints} pts, Top scorer = {scorerKeepPoints} pts.
-          If you change and save now (and are correct): Winner = {winnerChangePoints} pts, Top scorer = {scorerChangePoints} pts.
+          ⏰ {scoreNote}
         </p>
 
       {/* Winner select */}
@@ -224,7 +246,7 @@ export function TournamentPredictionsForm({
         )}
           {!winnerLocked && (
             <p className="text-xs mt-2 text-center" style={{ color: 'var(--text-subtle)' }}>
-              Correct winner points: keep current = {winnerKeepPoints}, change now = {winnerChangePoints}.
+              {winnerPointHint}
             </p>
           )}
       </div>
@@ -275,7 +297,7 @@ export function TournamentPredictionsForm({
           )}
           {!topScorerLocked && (
             <p className="text-xs mt-2 text-center" style={{ color: 'var(--text-subtle)' }}>
-              Correct top scorer points: keep current = {scorerKeepPoints}, change now = {scorerChangePoints}.
+              {scorerPointHint}
             </p>
           )}
         </div>

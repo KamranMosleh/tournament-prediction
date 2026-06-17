@@ -29,7 +29,7 @@ function mapStatus(status: string): MatchStatus {
 }
 
 async function isAuthorized(req: NextRequest, supabase: ReturnType<typeof createServiceClient>, leagueId?: string): Promise<boolean> {
-  // Vercel Cron sends Authorization: Bearer <CRON_SECRET>
+  // Legacy Vercel Cron support: Authorization: Bearer <CRON_SECRET>
   const cronSecret = process.env.CRON_SECRET
   const syncSecret = process.env.SYNC_SECRET
   const auth = req.headers.get('authorization') ?? ''
@@ -38,7 +38,7 @@ async function isAuthorized(req: NextRequest, supabase: ReturnType<typeof create
 
   // Allow if no secrets configured (dev mode)
   if (!cronSecret && !syncSecret) return true
-  // Vercel Cron
+  // Legacy Vercel Cron
   if (cronSecret && auth === `Bearer ${cronSecret}`) return true
   // Manual call with x-sync-secret header
   if (syncSecret && xSecret === syncSecret) return true

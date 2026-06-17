@@ -52,7 +52,9 @@ npm run dev
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API |
 | `FOOTBALL_DATA_API_KEY` | [football-data.org/client/register](https://www.football-data.org/client/register) — free |
 | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) — free |
-| `CRON_SECRET` | Vercel sets this automatically (see Vercel docs) |
+| `SYNC_SECRET` | Long random value shared between Vercel and the Supabase scheduled sync |
+
+For production auto-sync on Vercel Hobby, use Supabase scheduling instead of Vercel Cron. See [`docs/SUPABASE_VERCEL_SYNC_SETUP.md`](docs/SUPABASE_VERCEL_SYNC_SETUP.md).
 
 ## Game rules
 
@@ -169,3 +171,4 @@ supabase/
 ## Docs
 
 Full architecture, data model, feature spec, and API setup guides live in `docs/`.
+For the production 5-minute sync setup on Vercel Hobby, see [`docs/SUPABASE_VERCEL_SYNC_SETUP.md`](docs/SUPABASE_VERCEL_SYNC_SETUP.md).

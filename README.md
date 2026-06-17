@@ -4,6 +4,29 @@ Predict football match scores with friends. No accounts needed — create a leag
 
 Built with Next.js 14, Supabase, Tailwind CSS, and Groq AI.
 
+## How to play
+
+1. Create a league and share the invite code with friends.
+2. Predict each match score before kick-off.
+3. Match predictions lock when the match starts.
+4. Score points for exact scores or correct outcomes.
+5. Use **My Picks** to choose the tournament winner and Golden Boot winner.
+6. Check **Standings** after results are entered or synced.
+7. Use **Reveal** to see anonymous trends before kick-off and named picks after matches lock.
+
+If players have the same total points, the player with more exact-score predictions ranks higher.
+
+```mermaid
+flowchart LR
+  A[Create league] --> B[Share invite code]
+  B --> C[Friends join]
+  C --> D[Predict match scores]
+  D --> E[Kick-off locks picks]
+  E --> F[Results update scores]
+  F --> G[Standings and Reveal update]
+  G --> D
+```
+
 ## Quick start
 
 ```bash

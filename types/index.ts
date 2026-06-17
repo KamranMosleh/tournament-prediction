@@ -12,6 +12,7 @@ export interface League {
   tournament_code: string
   tournament_season: number
   created_by: string | null
+  created_by_user_id: string | null
   sync_source: SyncSource
   scoring_mode: ScoringMode
   telegram_url: string | null
@@ -21,6 +22,7 @@ export interface League {
 export interface Player {
   id: string
   league_id: string
+  user_id: string | null
   display_name: string
   session_token: string
   is_admin: boolean
@@ -136,6 +138,7 @@ export interface MatchWithPrediction extends Match {
 
 export interface Session {
   player_id: string
+  user_id?: string | null
   session_token: string
   display_name: string
   league_id: string

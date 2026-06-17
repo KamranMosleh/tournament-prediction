@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { ArrowRight, Loader2 } from 'lucide-react'
-import { saveSession, getSession } from '@/lib/utils'
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { ArrowRight, Loader2, LogIn, Trophy } from 'lucide-react'
+import { getSession, saveSession } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 export default function JoinPage() {
   const router = useRouter()
@@ -11,17 +12,45 @@ export default function JoinPage() {
   const code = (params.code as string).toUpperCase()
 
   const [yourName, setYourName] = useState('')
+  const [signedIn, setSignedIn] = useState(false)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Already in this league → go straight in
   useEffect(() => {
+    const supabase = createClient()
+    let mounted = true
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!mounted) return
+      setSignedIn(Boolean(user))
+      setCheckingAuth(false)
+    })
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(Boolean(session?.user))
+      setCheckingAuth(false)
+    })
+
+    return () => {
+      mounted = false
+      data.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (checkingAuth || signedIn) return
     const existing = getSession(code)
     if (existing) router.replace(`/league/${code}`)
-  }, [code, router])
+  }, [checkingAuth, code, router, signedIn])
 
   const handleJoin = async () => {
+    if (!signedIn) {
+      router.push(`/auth/sign-in?next=/join/${code}`)
+      return
+    }
     if (!yourName.trim()) return
+
     setError('')
     setLoading(true)
     try {
@@ -34,15 +63,23 @@ export default function JoinPage() {
       if (!res.ok) { setError(data.error); return }
       saveSession(data.league.invite_code, data.session)
       router.push(`/league/${data.league.invite_code}`)
-    } catch { setError('Something went wrong. Please try again.') }
-    finally { setLoading(false) }
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
+
+  const disabled = loading || checkingAuth || (signedIn && yourName.trim().length < 2)
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-xs">
         <div className="text-center mb-7">
-          <div className="text-4xl mb-3">⚽</div>
+          <div className="inline-flex w-12 h-12 rounded-lg items-center justify-center mb-3"
+            style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}>
+            <Trophy size={22} />
+          </div>
           <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text)' }}>Join League</h1>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             Invite code:{' '}
@@ -50,8 +87,14 @@ export default function JoinPage() {
           </p>
         </div>
 
-        <div className="rounded-2xl p-5 flex flex-col gap-4"
+        <div className="rounded-lg p-5 flex flex-col gap-4"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          {!checkingAuth && !signedIn && (
+            <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+              Sign in first so this league is saved to your account.
+            </p>
+          )}
+
           <div>
             <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>
               Your display name
@@ -66,14 +109,16 @@ export default function JoinPage() {
               autoFocus
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
               style={{
-                background: 'var(--bg)', border: '1.5px solid var(--border)',
-                color: 'var(--text)', transition: 'border-color 0.15s',
+                background: 'var(--bg)',
+                border: '1.5px solid var(--border)',
+                color: 'var(--text)',
+                transition: 'border-color 0.15s',
               }}
               onFocus={e => { e.target.style.borderColor = 'var(--accent)' }}
               onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
             />
             <p className="text-xs mt-2" style={{ color: 'var(--text-subtle)' }}>
-              💡 Tip: Use the same name to recover your picks on another device or browser.
+              Use an existing name to claim that old player slot for your account.
             </p>
           </div>
 
@@ -81,17 +126,17 @@ export default function JoinPage() {
 
           <button
             onClick={handleJoin}
-            disabled={yourName.trim().length < 2 || loading}
-            className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2"
+            disabled={disabled}
+            className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"
             style={{
-              background: yourName.trim().length < 2 ? 'var(--surface-2)' : 'var(--accent)',
-              color: yourName.trim().length < 2 ? 'var(--text-subtle)' : '#000',
-              cursor: yourName.trim().length < 2 || loading ? 'not-allowed' : 'pointer',
+              background: disabled ? 'var(--surface-2)' : 'var(--accent)',
+              color: disabled ? 'var(--text-subtle)' : '#000',
+              cursor: disabled ? 'not-allowed' : 'pointer',
               transition: 'background 0.15s',
             }}
           >
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-            {loading ? 'Joining…' : 'Join League'}
+            {loading || checkingAuth ? <Loader2 size={14} className="animate-spin" /> : signedIn ? <ArrowRight size={14} /> : <LogIn size={14} />}
+            {checkingAuth ? 'Checking...' : loading ? 'Joining...' : signedIn ? 'Join League' : 'Sign in to join'}
           </button>
 
           <button onClick={() => router.push('/')} className="text-xs text-center"

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth'
 import {
   autoGeneratePunditSummariesForTournament,
   autoGenerateMatchRecapsForTournament,
@@ -41,6 +42,20 @@ async function isAuthorized(req: NextRequest, supabase: ReturnType<typeof create
   if (cronSecret && auth === `Bearer ${cronSecret}`) return true
   // Manual call with x-sync-secret header
   if (syncSecret && xSecret === syncSecret) return true
+
+  const user = await getCurrentUser()
+  if (user) {
+    let query = supabase
+      .from('players')
+      .select('is_admin, league_id')
+      .eq('user_id', user.id)
+      .eq('is_admin', true)
+
+    if (leagueId) query = query.eq('league_id', leagueId)
+
+    const { data: player } = await query.maybeSingle()
+    if (player?.is_admin) return true
+  }
 
   // Admin users can manually trigger fixture import from the app UI
   if (sessionToken) {

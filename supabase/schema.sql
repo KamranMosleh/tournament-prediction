@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS leagues (
   tournament_code   TEXT NOT NULL DEFAULT 'WC',
   tournament_season INTEGER NOT NULL DEFAULT 2026,
   created_by        UUID,
+  created_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   sync_source       TEXT NOT NULL DEFAULT 'api'
                       CHECK (sync_source IN ('api', 'manual')),
   scoring_mode      TEXT NOT NULL DEFAULT 'multiplied'
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS leagues (
 CREATE TABLE IF NOT EXISTS players (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   league_id         UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+  user_id           UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   display_name      TEXT NOT NULL CHECK (char_length(display_name) BETWEEN 2 AND 20),
   session_token     UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
   is_admin          BOOLEAN NOT NULL DEFAULT FALSE,
@@ -38,6 +40,19 @@ CREATE TABLE IF NOT EXISTS players (
   joined_match_day  INTEGER,
   UNIQUE (league_id, display_name)
 );
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email      TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Existing projects: safe compatibility columns for account-backed memberships.
+ALTER TABLE leagues
+  ADD COLUMN IF NOT EXISTS created_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
+ALTER TABLE players
+  ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
 DO $$ 
 BEGIN
@@ -146,6 +161,7 @@ CREATE TABLE IF NOT EXISTS match_recaps (
 
 CREATE INDEX IF NOT EXISTS idx_players_league       ON players(league_id);
 CREATE INDEX IF NOT EXISTS idx_players_token        ON players(session_token);
+CREATE INDEX IF NOT EXISTS idx_players_user         ON players(user_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_player   ON match_predictions(player_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_match    ON match_predictions(match_id);
 CREATE INDEX IF NOT EXISTS idx_matches_tournament   ON matches(tournament_code, tournament_season);
@@ -155,6 +171,13 @@ CREATE INDEX IF NOT EXISTS idx_matches_external_id  ON matches(external_match_id
 CREATE INDEX IF NOT EXISTS idx_sync_log_tournament  ON sync_log(tournament_code, synced_at DESC);
 CREATE INDEX IF NOT EXISTS idx_matchday_summaries   ON matchday_summaries(league_id, match_day);
 CREATE INDEX IF NOT EXISTS idx_match_recaps         ON match_recaps(league_id, match_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_players_league_display_name_ci
+  ON players(league_id, lower(btrim(display_name)));
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_players_league_user
+  ON players(league_id, user_id)
+  WHERE user_id IS NOT NULL;
 
 -- ============================================================
 -- SCORING VIEW (multiplied + flat, late-joiner form %)
@@ -248,6 +271,7 @@ GROUP BY p.id, p.league_id, p.display_name, p.joined_match_day;
 -- ============================================================
 
 ALTER TABLE leagues                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE players                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE match_predictions      ENABLE ROW LEVEL SECURITY;
@@ -255,6 +279,21 @@ ALTER TABLE tournament_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sync_log               ENABLE ROW LEVEL SECURITY;
 
 -- Public reads
+DO $$ BEGIN
+  CREATE POLICY "profiles_self_read" ON profiles FOR SELECT USING (auth.uid() = id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "profiles_self_insert" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "profiles_self_update" ON profiles FOR UPDATE USING (auth.uid() = id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 DO $$ BEGIN
   CREATE POLICY "leagues_read"  ON leagues  FOR SELECT USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL;

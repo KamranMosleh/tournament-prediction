@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getVerifiedPlayer } from '@/lib/auth'
 import type { Match } from '@/types'
 import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('x-session-token')
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
     const { player_id, league_id, winner_team, top_scorer_name } = await req.json()
     const winnerInput = typeof winner_team === 'string' ? winner_team.trim() : ''
     const scorerInput = typeof top_scorer_name === 'string' ? top_scorer_name.trim() : ''
@@ -21,14 +19,8 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    // Verify session
-    const { data: player } = await supabase
-      .from('players')
-      .select('id, league_id')
-      .eq('session_token', token)
-      .single()
-
-    if (!player || player.id !== player_id || player.league_id !== league_id) {
+    const verified = await getVerifiedPlayer(req, supabase, { playerId: player_id, leagueId: league_id })
+    if (!verified) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

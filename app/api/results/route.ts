@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getVerifiedPlayer } from '@/lib/auth'
 import {
   autoGeneratePunditSummariesForLeagueMatchDay,
   autoGenerateMatchRecapsForMatch,
@@ -8,9 +9,6 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('x-session-token')
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
     const { match_id, home_score, away_score } = await req.json()
 
     if (!match_id || home_score === undefined || away_score === undefined) {
@@ -22,17 +20,30 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    // Verify player is admin
-    const { data: player } = await supabase.from('players').select('*').eq('session_token', token).single()
-    if (!player?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden — admins only' }, { status: 403 })
-    }
-
-    // Verify match belongs to admin's league
     const { data: match } = await supabase.from('matches').select('*').eq('id', match_id).single()
     if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 })
     if (match.status === 'open') {
       return NextResponse.json({ error: 'Match has not started yet' }, { status: 409 })
+    }
+
+    const verified = await getVerifiedPlayer(req, supabase, { requireAdmin: true })
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden - admins only' }, { status: 403 })
+    }
+
+    const player = verified.player
+    const { data: league } = await supabase
+      .from('leagues')
+      .select('tournament_code, tournament_season')
+      .eq('id', player.league_id)
+      .single()
+
+    if (
+      !league ||
+      league.tournament_code !== match.tournament_code ||
+      league.tournament_season !== match.tournament_season
+    ) {
+      return NextResponse.json({ error: 'Forbidden - match is outside this league tournament' }, { status: 403 })
     }
 
     const { data, error } = await supabase

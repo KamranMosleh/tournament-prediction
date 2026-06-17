@@ -8,13 +8,17 @@ import {
   ChevronUp,
   ExternalLink,
   Loader2,
+  LogIn,
+  LogOut,
   PlusCircle,
   ShieldCheck,
   Trophy,
+  UserPlus,
   Users,
 } from 'lucide-react'
-import type { Session, SessionsMap } from '@/types'
+import type { League, Player, Session, SessionsMap } from '@/types'
 import { getSessions, saveSession } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 // Tournaments available on football-data.org free tier
 const TOURNAMENTS = [
@@ -29,19 +33,92 @@ const TOURNAMENTS = [
   { label: 'Ligue 1 25/26',               code: 'FL1', season: 2025 },
 ]
 
+type AccountPlayerRow = Player & { leagues: League | League[] | null }
+
 export default function HomePage() {
+  const router = useRouter()
   const [sessions, setSessions] = useState<SessionsMap>({})
+  const [accountEmail, setAccountEmail] = useState<string | null>(null)
+  const [accountLeagues, setAccountLeagues] = useState<Array<[string, Session]>>([])
+  const [authLoading, setAuthLoading] = useState(true)
 
-  useEffect(() => { setSessions(getSessions()) }, [])
+  useEffect(() => {
+    setSessions(getSessions())
 
-  const leagueList = Object.entries(sessions)
-  const hasSavedLeagues = leagueList.length > 0
+    const supabase = createClient()
+    let mounted = true
+
+    const loadAccount = async () => {
+      setAuthLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!mounted) return
+
+      setAccountEmail(user?.email ?? null)
+
+      if (!user) {
+        setAccountLeagues([])
+        setAuthLoading(false)
+        return
+      }
+
+      const { data } = await supabase
+        .from('players')
+        .select('*, leagues(*)')
+        .eq('user_id', user.id)
+        .order('joined_at', { ascending: true })
+
+      if (!mounted) return
+
+      const entries = ((data ?? []) as AccountPlayerRow[])
+        .map(row => {
+          const league = relationOne(row.leagues)
+          if (!league) return null
+          const session: Session = {
+            player_id: row.id,
+            user_id: row.user_id,
+            session_token: row.session_token,
+            display_name: row.display_name,
+            league_id: league.id,
+            league_name: league.name,
+            invite_code: league.invite_code,
+            is_admin: row.is_admin,
+          }
+          return [league.invite_code, session] as [string, Session]
+        })
+        .filter((entry): entry is [string, Session] => Boolean(entry))
+
+      setAccountLeagues(entries)
+      setAuthLoading(false)
+    }
+
+    loadAccount()
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => { loadAccount() })
+
+    return () => {
+      mounted = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [])
+
+  const legacyLeagues = Object.entries(sessions)
+    .filter(([code]) => !accountLeagues.some(([accountCode]) => accountCode.toUpperCase() === code.toUpperCase()))
+
+  const hasLeagueCards = accountLeagues.length > 0 || legacyLeagues.length > 0
+  const isSignedIn = Boolean(accountEmail)
+
+  const signOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    setAccountEmail(null)
+    setAccountLeagues([])
+    router.refresh()
+  }
 
   return (
     <main className="min-h-screen px-4 py-8 sm:py-12">
       <div className="w-full max-w-5xl mx-auto">
         <header className="mb-6 sm:mb-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--accent)' }}>
                 <Trophy size={14} />
@@ -55,21 +132,34 @@ export default function HomePage() {
               </p>
             </div>
 
-            <p className="text-xs sm:text-right max-w-sm leading-relaxed" style={{ color: 'var(--text-subtle)' }}>
-              Picks save automatically. Rejoin with the same league code and display name on any device.
-            </p>
+            <AccountPanel email={accountEmail} loading={authLoading} onSignOut={signOut} />
           </div>
         </header>
 
         <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr] md:items-start">
-          {hasSavedLeagues && (
-            <div className="order-1 md:order-3 md:col-start-2 md:row-start-2">
-              <YourLeaguesCard leagues={leagueList} />
+          {hasLeagueCards && (
+            <div className="order-1 md:order-3 md:col-start-2 md:row-start-2 flex flex-col gap-4">
+              {accountLeagues.length > 0 && (
+                <YourLeaguesCard
+                  title="Your Leagues"
+                  description="Synced to your account."
+                  leagues={accountLeagues}
+                />
+              )}
+              {legacyLeagues.length > 0 && (
+                <YourLeaguesCard
+                  title="Saved on this device"
+                  description="Legacy sessions stored in this browser."
+                  leagues={legacyLeagues}
+                />
+              )}
             </div>
           )}
 
-          <div className={`${hasSavedLeagues ? 'order-2' : 'order-1'} md:order-1 md:col-start-1 md:row-span-2`}>
+          <div className={`${hasLeagueCards ? 'order-2' : 'order-1'} md:order-1 md:col-start-1 md:row-span-2`}>
             <CreateLeagueCard
+              signedIn={isSignedIn}
+              onAuthRequired={() => router.push('/auth/sign-in?next=/')}
               onCreated={(code, session) => {
                 saveSession(code, session)
                 setSessions(getSessions())
@@ -77,8 +167,10 @@ export default function HomePage() {
             />
           </div>
 
-          <div className={`${hasSavedLeagues ? 'order-3' : 'order-2'} md:order-2 md:col-start-2 md:row-start-1`}>
+          <div className={`${hasLeagueCards ? 'order-3' : 'order-2'} md:order-2 md:col-start-2 md:row-start-1`}>
             <JoinLeagueCard
+              signedIn={isSignedIn}
+              onAuthRequired={() => router.push('/auth/sign-in?next=/')}
               onJoined={(code, session) => {
                 saveSession(code, session)
                 setSessions(getSessions())
@@ -91,13 +183,71 @@ export default function HomePage() {
   )
 }
 
-function YourLeaguesCard({ leagues }: { leagues: Array<[string, Session]> }) {
+function relationOne<T>(relation: T | T[] | null): T | null {
+  if (Array.isArray(relation)) return relation[0] ?? null
+  return relation
+}
+
+function AccountPanel({ email, loading, onSignOut }: { email: string | null; loading: boolean; onSignOut: () => void }) {
+  if (loading) {
+    return (
+      <div className="text-xs flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+        <Loader2 size={13} className="animate-spin" />
+        Checking account...
+      </div>
+    )
+  }
+
+  if (!email) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <AuthLink href="/auth/sign-in" icon={<LogIn size={13} />} label="Sign in" />
+        <AuthLink href="/auth/sign-up" icon={<UserPlus size={13} />} label="Create account" strong />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col sm:items-end gap-2">
+      <p className="text-xs max-w-xs truncate" style={{ color: 'var(--text-muted)' }}>
+        Signed in as <span style={{ color: 'var(--text)' }}>{email}</span>
+      </p>
+      <button
+        onClick={onSignOut}
+        className="inline-flex items-center gap-1.5 text-xs w-fit"
+        style={{ color: 'var(--text-subtle)' }}
+      >
+        <LogOut size={13} />
+        Sign out
+      </button>
+    </div>
+  )
+}
+
+function AuthLink({ href, icon, label, strong }: { href: string; icon: ReactNode; label: string; strong?: boolean }) {
+  return (
+    <a
+      href={href}
+      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+      style={{
+        background: strong ? 'var(--accent)' : 'var(--surface)',
+        color: strong ? '#000' : 'var(--text)',
+        border: strong ? '1px solid var(--accent)' : '1px solid var(--border)',
+      }}
+    >
+      {icon}
+      {label}
+    </a>
+  )
+}
+
+function YourLeaguesCard({ title, description, leagues }: { title: string; description: string; leagues: Array<[string, Session]> }) {
   return (
     <Card compact>
       <CardHeader
         icon={<ShieldCheck size={15} style={{ color: 'var(--accent)' }} />}
-        label="Your Leagues"
-        description="Jump back into a saved league."
+        label={title}
+        description={description}
       />
       <div className="flex flex-col gap-2">
         {leagues.map(([code, s]) => (
@@ -139,7 +289,15 @@ function YourLeagueRow({ code, session }: { code: string; session: Session }) {
   )
 }
 
-function CreateLeagueCard({ onCreated }: { onCreated: (code: string, s: Session) => void }) {
+function CreateLeagueCard({
+  signedIn,
+  onAuthRequired,
+  onCreated,
+}: {
+  signedIn: boolean
+  onAuthRequired: () => void
+  onCreated: (code: string, s: Session) => void
+}) {
   const router = useRouter()
   const [leagueName, setLeagueName] = useState('')
   const [yourName, setYourName] = useState('')
@@ -150,6 +308,11 @@ function CreateLeagueCard({ onCreated }: { onCreated: (code: string, s: Session)
   const [error, setError] = useState('')
 
   const handleCreate = async () => {
+    if (!signedIn) {
+      onAuthRequired()
+      return
+    }
+
     setError('')
     setLoading(true)
     const t = TOURNAMENTS[tournamentIdx]
@@ -178,6 +341,7 @@ function CreateLeagueCard({ onCreated }: { onCreated: (code: string, s: Session)
   }
 
   const ready = leagueName.trim().length >= 3 && yourName.trim().length >= 2
+  const disabled = loading || (signedIn && !ready)
 
   return (
     <Card primary>
@@ -187,6 +351,11 @@ function CreateLeagueCard({ onCreated }: { onCreated: (code: string, s: Session)
         description="Start fresh with a tournament and invite your crew."
       />
       <div className="flex flex-col gap-3.5">
+        {!signedIn && (
+          <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            Sign in first so this league follows you across devices.
+          </p>
+        )}
         <Field label="League name" placeholder="e.g. Office Crew 2026" value={leagueName} onChange={setLeagueName} maxLength={40} />
         <Field label="Your name" placeholder="How you'll appear on the board" value={yourName} onChange={setYourName} maxLength={20} />
 
@@ -225,13 +394,27 @@ function CreateLeagueCard({ onCreated }: { onCreated: (code: string, s: Session)
         )}
 
         {error && <p className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}
-        <ActionBtn onClick={handleCreate} disabled={!ready || loading} loading={loading} label="Create League" color="var(--accent)" />
+        <ActionBtn
+          onClick={handleCreate}
+          disabled={disabled}
+          loading={loading}
+          label={signedIn ? 'Create League' : 'Sign in to create'}
+          color="var(--accent)"
+        />
       </div>
     </Card>
   )
 }
 
-function JoinLeagueCard({ onJoined }: { onJoined: (code: string, s: Session) => void }) {
+function JoinLeagueCard({
+  signedIn,
+  onAuthRequired,
+  onJoined,
+}: {
+  signedIn: boolean
+  onAuthRequired: () => void
+  onJoined: (code: string, s: Session) => void
+}) {
   const router = useRouter()
   const [code, setCode] = useState('')
   const [yourName, setYourName] = useState('')
@@ -239,6 +422,11 @@ function JoinLeagueCard({ onJoined }: { onJoined: (code: string, s: Session) => 
   const [error, setError] = useState('')
 
   const handleJoin = async () => {
+    if (!signedIn) {
+      onAuthRequired()
+      return
+    }
+
     setError('')
     setLoading(true)
     try {
@@ -259,6 +447,7 @@ function JoinLeagueCard({ onJoined }: { onJoined: (code: string, s: Session) => 
   }
 
   const ready = code.trim().length === 6 && yourName.trim().length >= 2
+  const disabled = loading || (signedIn && !ready)
 
   return (
     <Card compact>
@@ -268,10 +457,21 @@ function JoinLeagueCard({ onJoined }: { onJoined: (code: string, s: Session) => 
         description="Enter a code from a friend."
       />
       <div className="flex flex-col gap-3">
+        {!signedIn && (
+          <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            Sign in first to save this league to your account.
+          </p>
+        )}
         <Field label="Invite code" placeholder="e.g. WOLF42" value={code} onChange={v => setCode(v.toUpperCase())} maxLength={6} mono />
         <Field label="Your name" placeholder="How you'll appear on the board" value={yourName} onChange={setYourName} maxLength={20} />
         {error && <p className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}
-        <ActionBtn onClick={handleJoin} disabled={!ready || loading} loading={loading} label="Join League" color="var(--blue)" />
+        <ActionBtn
+          onClick={handleJoin}
+          disabled={disabled}
+          loading={loading}
+          label={signedIn ? 'Join League' : 'Sign in to join'}
+          color="var(--blue)"
+        />
       </div>
     </Card>
   )

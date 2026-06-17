@@ -7,7 +7,7 @@ import type {
   League, Player, Match, MatchPrediction, TournamentPrediction,
   MatchdaySummary, MatchRecap, Session, MatchWithPrediction
 } from '@/types'
-import { getSession } from '@/lib/utils'
+import { getSession, saveSession } from '@/lib/utils'
 import { computeLeaderboard, sortLeaderboard } from '@/lib/scoring'
 import { InviteCode } from '@/components/ui/InviteCode'
 import { Leaderboard } from '@/components/leaderboard/Leaderboard'
@@ -67,10 +67,48 @@ export function LeagueHub({
   const playerIdsRef = useRef(initialPlayers.map(p => p.id))
   useEffect(() => { playerIdsRef.current = players.map(p => p.id) }, [players])
 
-  // Load session from localStorage — runs once
+  // Prefer account-backed membership, then fall back to legacy localStorage sessions.
   useEffect(() => {
-    setSession(getSession(league.invite_code) ?? null)
-  }, [league.invite_code])
+    let mounted = true
+
+    const loadSession = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: player } = await supabase
+          .from('players')
+          .select('*')
+          .eq('league_id', league.id)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (!mounted) return
+
+        if (player) {
+          const accountSession: Session = {
+            player_id: player.id,
+            user_id: player.user_id,
+            session_token: player.session_token,
+            display_name: player.display_name,
+            league_id: league.id,
+            league_name: league.name,
+            invite_code: league.invite_code,
+            is_admin: player.is_admin,
+          }
+          saveSession(league.invite_code, accountSession)
+          setSession(accountSession)
+          return
+        }
+      }
+
+      if (!mounted) return
+      setSession(getSession(league.invite_code) ?? null)
+    }
+
+    loadSession()
+    return () => { mounted = false }
+  }, [league.id, league.invite_code, league.name])
 
   // Supabase Realtime — subscribe once, use ref for player IDs
   useEffect(() => {

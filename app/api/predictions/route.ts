@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-
-async function verifySession(supabase: ReturnType<typeof createServiceClient>, token: string) {
-  const { data } = await (await supabase).from('players').select('*').eq('session_token', token).single()
-  return data
-}
+import { getVerifiedPlayer } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('x-session-token')
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
     const { match_id, player_id, home_score, away_score } = await req.json()
 
     if (!match_id || !player_id || home_score === undefined || away_score === undefined) {
@@ -22,9 +15,8 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    // Verify session token matches player
-    const player = await verifySession(supabase, token)
-    if (!player || player.id !== player_id) {
+    const verified = await getVerifiedPlayer(req, supabase, { playerId: player_id })
+    if (!verified) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

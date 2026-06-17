@@ -95,6 +95,27 @@ export function LeagueHub({
     return () => { supabase.removeChannel(channel) }
   }, [league.id]) // stable dependency — no re-subscribe on player changes
 
+  const predictionsByMatch = useMemo(() => {
+    const grouped = new Map<string, MatchPrediction[]>()
+    for (const p of predictions) {
+      const arr = grouped.get(p.match_id) ?? []
+      arr.push(p)
+      grouped.set(p.match_id, arr)
+    }
+    return grouped
+  }, [predictions])
+
+  const revealMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof buildMatchRevealData>>()
+    for (const match of matches) {
+      map.set(
+        match.id,
+        buildMatchRevealData(match, players, predictionsByMatch.get(match.id) ?? [], league.scoring_mode)
+      )
+    }
+    return map
+  }, [matches, players, predictionsByMatch, league.scoring_mode])
+
   // Loading state
   if (session === undefined) {
     return (
@@ -126,27 +147,6 @@ export function LeagueHub({
   const deadlines = getPickDeadlines(matches)
   const winnerLocked = isDeadlinePassed(deadlines.finalKickoff)
   const topScorerLocked = isDeadlinePassed(deadlines.semiFinalKickoff)
-
-  const predictionsByMatch = useMemo(() => {
-    const grouped = new Map<string, MatchPrediction[]>()
-    for (const p of predictions) {
-      const arr = grouped.get(p.match_id) ?? []
-      arr.push(p)
-      grouped.set(p.match_id, arr)
-    }
-    return grouped
-  }, [predictions])
-
-  const revealMap = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof buildMatchRevealData>>()
-    for (const match of matches) {
-      map.set(
-        match.id,
-        buildMatchRevealData(match, players, predictionsByMatch.get(match.id) ?? [], league.scoring_mode)
-      )
-    }
-    return map
-  }, [matches, players, predictionsByMatch, league.scoring_mode])
 
   const handleImportFixtures = async () => {
     if (syncState === 'syncing') return

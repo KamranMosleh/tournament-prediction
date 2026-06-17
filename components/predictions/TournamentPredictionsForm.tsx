@@ -92,15 +92,35 @@ export function TournamentPredictionsForm({
   }
 
   const allLocked = winnerLocked && topScorerLocked
-  const nowIso = new Date().toISOString()
+  const now = new Date()
+  const nowIso = now.toISOString()
   const winnerKeepPoints = winnerPointsForSubmittedAt(existing?.winner_submitted_at ?? existing?.submitted_at, pickDeadlines)
   const winnerChangePoints = winnerPointsForSubmittedAt(nowIso, pickDeadlines)
   const scorerKeepPoints = topScorerPointsForSubmittedAt(existing?.top_scorer_submitted_at ?? existing?.submitted_at, pickDeadlines)
   const scorerChangePoints = topScorerPointsForSubmittedAt(nowIso, pickDeadlines)
+  const nextDeadline = [
+    pickDeadlines.firstKickoff,
+    pickDeadlines.roundOf16Kickoff,
+    pickDeadlines.quarterFinalKickoff,
+    pickDeadlines.semiFinalKickoff,
+    pickDeadlines.finalKickoff,
+  ]
+    .filter((deadline): deadline is string => {
+      if (!deadline) return false
+      return new Date(deadline).getTime() > now.getTime()
+    })
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null
+  const afterNextDeadlineIso = nextDeadline
+    ? new Date(new Date(nextDeadline).getTime() + 1).toISOString()
+    : null
+  const nextWinnerPoints = afterNextDeadlineIso
+    ? winnerPointsForSubmittedAt(afterNextDeadlineIso, pickDeadlines)
+    : null
+  const nextScorerPoints = afterNextDeadlineIso
+    ? topScorerPointsForSubmittedAt(afterNextDeadlineIso, pickDeadlines)
+    : null
   const winnerSaved = Boolean(existing?.winner_team)
   const scorerSaved = Boolean(existing?.top_scorer_name)
-  const winnerWouldLosePoints = winnerSaved && winnerKeepPoints > winnerChangePoints
-  const scorerWouldLosePoints = scorerSaved && scorerKeepPoints > scorerChangePoints
   const livePointParts = [
     !winnerLocked ? `Winner = ${winnerChangePoints} pts` : null,
     !topScorerLocked ? `Top scorer = ${scorerChangePoints} pts` : null,
@@ -109,11 +129,17 @@ export function TournamentPredictionsForm({
     winnerSaved ? `Winner = ${winnerKeepPoints} pts` : null,
     scorerSaved ? `Top scorer = ${scorerKeepPoints} pts` : null,
   ].filter(Boolean).join(', ')
-  const scoreNote = winnerWouldLosePoints || scorerWouldLosePoints
-    ? `Pick early, score more. Your saved picks keep their original tier: ${savedPointParts}. If you change and save now, correct picks score ${livePointParts}.`
-    : winnerSaved || scorerSaved
-      ? `Your saved picks are still in the current bonus tier. Correct picks saved now score ${livePointParts}; points drop after the next tournament deadline.`
-      : `Correct picks saved now score ${livePointParts}. Points drop after each tournament deadline.`
+  const nextPointParts = [
+    !winnerLocked && nextWinnerPoints !== null ? `Winner = ${nextWinnerPoints} pts` : null,
+    !topScorerLocked && nextScorerPoints !== null ? `Top scorer = ${nextScorerPoints} pts` : null,
+  ].filter(Boolean).join(', ')
+  const currentSavedPointParts = savedPointParts || livePointParts
+  const nextDropText = nextDeadline && nextPointParts
+    ? `at the next score tier deadline, which is ${fmt(nextDeadline)}, new changes drop to ${nextPointParts}.`
+    : 'new changes drop after each tournament deadline.'
+  const scoreNote = winnerSaved || scorerSaved
+    ? `Careful when changing saved picks: changing a pick resets that pick to the current bonus tier. Current correct saved picks score ${currentSavedPointParts}; ${nextDropText}`
+    : `Correct picks saved now score ${livePointParts}; ${nextDropText}`
   const winnerPointHint = winnerSaved && winnerKeepPoints !== winnerChangePoints
     ? `Correct winner points: keep current = ${winnerKeepPoints}, change now = ${winnerChangePoints}.`
     : `Correct winner points: ${winnerChangePoints}.`

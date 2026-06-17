@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { groqComplete, insightPrompt } from '@/lib/groq'
-import { getMatchContext, formatContext, deriveDifficulty } from '@/lib/football-context'
-import { generatePunditSummaryForMatchDay } from '@/lib/ai-jobs'
-import type { Match } from '@/types'
+import {
+  enrichOpenMatchesForTournament,
+  generatePunditSummaryForMatchDay,
+  mergeOpenMatchEnrichmentResults,
+  type OpenMatchEnrichmentResult,
+} from '@/lib/ai-jobs'
 
 function isAuthorized(req: NextRequest): boolean {
   const syncSecret = process.env.SYNC_SECRET
   const cronSecret = process.env.CRON_SECRET
-  const auth    = req.headers.get('authorization') ?? ''
+  const auth = req.headers.get('authorization') ?? ''
   const xSecret = req.headers.get('x-sync-secret') ?? ''
   if (!syncSecret && !cronSecret) return true
   if (cronSecret && auth === `Bearer ${cronSecret}`) return true
@@ -17,80 +19,73 @@ function isAuthorized(req: NextRequest): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req))
+  if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const body = await req.json().catch(() => ({}))
   const action: string = body.action ?? 'seed_matches'
   const supabase = createServiceClient()
 
-  // ── Seed AI content for matches ───────────────────────────────────────
   if (action === 'seed_matches') {
     const force: boolean = body.force ?? false
+    const tournamentCode: string | undefined = body.tournament_code
+    const tournamentSeason = Number(body.tournament_season ?? body.season ?? new Date().getFullYear())
+    let aiEnrichment: OpenMatchEnrichmentResult
 
-    let query = supabase
-      .from('matches')
-      .select('id, home_team, away_team, tournament_code, tournament_season, stage')
-      .eq('status', 'open')
-      .limit(50)
-
-    // Without force: only unseed matches
-    if (!force) {
-      query = query.is('ai_insight', null) as typeof query
-    }
-
-    const { data: matches } = await query
-
-    if (!matches?.length) return NextResponse.json({ seeded: 0 })
-
-    const hasGroq = !!process.env.GROQ_API_KEY
-    let seeded = 0
-
-    for (const match of matches as Pick<Match, 'id' | 'home_team' | 'away_team' | 'tournament_code' | 'tournament_season' | 'stage'>[]) {
-      const tournament = `${match.tournament_code} ${match.tournament_season}`
-
-      // 1. Fetch real form data from our own DB (no extra API calls)
-      const ctx = await getMatchContext(
-        match.home_team,
-        match.away_team,
-        match.tournament_code,
-        match.tournament_season
+    if (tournamentCode) {
+      aiEnrichment = await enrichOpenMatchesForTournament(
+        tournamentCode,
+        tournamentSeason,
+        { force },
+        supabase
       )
+    } else {
+      const { data: pairs, error } = await supabase
+        .from('matches')
+        .select('tournament_code, tournament_season')
+        .eq('status', 'open')
 
-      // 2. Derive difficulty from real data — no AI call needed
-      const difficulty = deriveDifficulty(ctx)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-      // 3. Build context string for the prompt
-      const liveContext = formatContext(match.home_team, match.away_team, ctx)
-
-      // 4. Generate insight with Groq (skipped gracefully if no key)
-      let insight: string | null = null
-      if (hasGroq) {
-        insight = await groqComplete(
-          insightPrompt(match.home_team, match.away_team, tournament, match.stage, liveContext || undefined),
-          120
-        )
-        // Rate limit: 30 req/min → pause 2.1s between calls
-        await new Promise(r => setTimeout(r, 2100))
+      const uniquePairs = new Map<string, { tournament_code: string; tournament_season: number }>()
+      for (const pair of pairs ?? []) {
+        uniquePairs.set(`${pair.tournament_code}:${pair.tournament_season}`, pair)
       }
 
-      await supabase.from('matches').update({
-        ai_difficulty: difficulty,
-        ...(insight !== null && { ai_insight: insight }),
-        ai_insight_generated_at: new Date().toISOString(),
-      }).eq('id', match.id)
+      const results: OpenMatchEnrichmentResult[] = []
+      for (const pair of uniquePairs.values()) {
+        results.push(await enrichOpenMatchesForTournament(
+          pair.tournament_code,
+          pair.tournament_season,
+          { force },
+          supabase
+        ))
+      }
 
-      seeded++
+      aiEnrichment = uniquePairs.size > 0
+        ? mergeOpenMatchEnrichmentResults(results)
+        : {
+          processed: 0,
+          difficultyUpdated: 0,
+          insightsCreated: 0,
+          insightsSkipped: 0,
+          errors: 0,
+          groqEnabled: !!process.env.GROQ_API_KEY,
+        }
     }
 
-    return NextResponse.json({ seeded, groqEnabled: hasGroq })
+    return NextResponse.json({
+      seeded: aiEnrichment.processed,
+      ...aiEnrichment,
+    })
   }
 
-  // ── Pundit summary for completed matchday ─────────────────────────────
   if (action === 'pundit_summary') {
     const { league_id, match_day } = body
-    if (!league_id || !match_day)
+    if (!league_id || !match_day) {
       return NextResponse.json({ error: 'league_id and match_day required' }, { status: 400 })
+    }
 
     const res = await generatePunditSummaryForMatchDay(league_id, Number(match_day), supabase)
     if (res.status === 'created') {

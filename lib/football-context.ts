@@ -18,6 +18,8 @@ export interface MatchContext {
   hasData: boolean
 }
 
+type ServiceClient = ReturnType<typeof createServiceClient>
+
 /**
  * Queries finished matches from the local Supabase DB to build
  * real form and head-to-head context for two teams.
@@ -27,9 +29,10 @@ export async function getMatchContext(
   homeTeam: string,
   awayTeam: string,
   tournamentCode: string,
-  tournamentSeason: number
+  tournamentSeason: number,
+  supabaseArg?: ServiceClient
 ): Promise<MatchContext> {
-  const supabase = createServiceClient()
+  const supabase = supabaseArg ?? createServiceClient()
 
   const { data } = await supabase
     .from('matches')

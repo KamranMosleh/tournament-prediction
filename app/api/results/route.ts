@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { autoGeneratePunditSummariesForLeagueMatchDay, autoGenerateMatchRecapsForMatch } from '@/lib/ai-jobs'
+import {
+  autoGeneratePunditSummariesForLeagueMatchDay,
+  autoGenerateMatchRecapsForMatch,
+  enrichOpenMatchesForTournament,
+} from '@/lib/ai-jobs'
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,14 +44,15 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: 'Failed to save result' }, { status: 500 })
 
-    const [aiSummary, aiRecap] = await Promise.all([
+    const [aiSummary, aiRecap, aiEnrichment] = await Promise.all([
       match.match_day
         ? autoGeneratePunditSummariesForLeagueMatchDay(player.league_id, match.match_day, supabase)
         : Promise.resolve({ status: 'skipped' as const, reason: 'match day unavailable' }),
       autoGenerateMatchRecapsForMatch(match_id, match.tournament_code, match.tournament_season, supabase),
+      enrichOpenMatchesForTournament(match.tournament_code, match.tournament_season, {}, supabase),
     ])
 
-    return NextResponse.json({ match: data, aiSummary, aiRecap })
+    return NextResponse.json({ match: data, aiSummary, aiRecap, aiEnrichment })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

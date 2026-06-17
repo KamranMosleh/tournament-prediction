@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import { groqComplete, groqCompleteJSON, punditsPrompt, matchRecapPrompt, type PlayerPredictionInput } from '@/lib/groq'
+import { groqComplete, groqCompleteJSON, insightPrompt, punditsPrompt, matchRecapPrompt, type PlayerPredictionInput } from '@/lib/groq'
+import { getMatchContext, formatContext, deriveDifficulty } from '@/lib/football-context'
 import { computeLeaderboard, sortLeaderboard, matchPoints } from '@/lib/scoring'
 import type {
   League,
@@ -15,6 +16,137 @@ type ServiceClient = ReturnType<typeof createServiceClient>
 export type SummaryGenerationResult = {
   status: 'created' | 'skipped' | 'error'
   reason?: string
+}
+
+export type OpenMatchEnrichmentResult = {
+  processed: number
+  difficultyUpdated: number
+  insightsCreated: number
+  insightsSkipped: number
+  errors: number
+  groqEnabled: boolean
+}
+
+export type OpenMatchEnrichmentOptions = {
+  force?: boolean
+}
+
+function emptyOpenMatchEnrichmentResult(groqEnabled: boolean): OpenMatchEnrichmentResult {
+  return {
+    processed: 0,
+    difficultyUpdated: 0,
+    insightsCreated: 0,
+    insightsSkipped: 0,
+    errors: 0,
+    groqEnabled,
+  }
+}
+
+export function mergeOpenMatchEnrichmentResults(
+  results: OpenMatchEnrichmentResult[]
+): OpenMatchEnrichmentResult {
+  return results.reduce<OpenMatchEnrichmentResult>(
+    (total, res) => ({
+      processed: total.processed + res.processed,
+      difficultyUpdated: total.difficultyUpdated + res.difficultyUpdated,
+      insightsCreated: total.insightsCreated + res.insightsCreated,
+      insightsSkipped: total.insightsSkipped + res.insightsSkipped,
+      errors: total.errors + res.errors,
+      groqEnabled: total.groqEnabled || res.groqEnabled,
+    }),
+    emptyOpenMatchEnrichmentResult(false)
+  )
+}
+
+export async function enrichOpenMatchesForTournament(
+  tournamentCode: string,
+  tournamentSeason: number,
+  options: OpenMatchEnrichmentOptions = {},
+  supabaseArg?: ServiceClient
+): Promise<OpenMatchEnrichmentResult> {
+  const supabase = supabaseArg ?? createServiceClient()
+  const hasGroq = !!process.env.GROQ_API_KEY
+  const result = emptyOpenMatchEnrichmentResult(hasGroq)
+
+  const { data: matches, error } = await supabase
+    .from('matches')
+    .select('id, home_team, away_team, tournament_code, tournament_season, stage, ai_insight')
+    .eq('tournament_code', tournamentCode)
+    .eq('tournament_season', tournamentSeason)
+    .eq('status', 'open')
+    .order('kickoff_time', { ascending: true })
+
+  if (error) {
+    result.errors++
+    return result
+  }
+
+  for (const match of (matches ?? []) as Pick<
+    Match,
+    'id' | 'home_team' | 'away_team' | 'tournament_code' | 'tournament_season' | 'stage' | 'ai_insight'
+  >[]) {
+    result.processed++
+
+    try {
+      const ctx = await getMatchContext(
+        match.home_team,
+        match.away_team,
+        match.tournament_code,
+        match.tournament_season,
+        supabase
+      )
+      const difficulty = deriveDifficulty(ctx)
+      const shouldGenerateInsight = options.force || !match.ai_insight
+
+      let insight: string | null = null
+      if (shouldGenerateInsight) {
+        if (hasGroq) {
+          const tournament = `${match.tournament_code} ${match.tournament_season}`
+          const liveContext = formatContext(match.home_team, match.away_team, ctx)
+
+          insight = await groqComplete(
+            insightPrompt(match.home_team, match.away_team, tournament, match.stage, liveContext || undefined),
+            120
+          )
+
+          // Groq's public rate limit is modest; keep automated batches gentle.
+          await new Promise(r => setTimeout(r, 2100))
+        }
+
+        if (!insight) result.insightsSkipped++
+      } else {
+        result.insightsSkipped++
+      }
+
+      const update: {
+        ai_difficulty: ReturnType<typeof deriveDifficulty>
+        ai_insight?: string
+        ai_insight_generated_at?: string
+      } = { ai_difficulty: difficulty }
+
+      if (insight !== null) {
+        update.ai_insight = insight
+        update.ai_insight_generated_at = new Date().toISOString()
+      }
+
+      const { error: updateError } = await supabase
+        .from('matches')
+        .update(update)
+        .eq('id', match.id)
+
+      if (updateError) {
+        result.errors++
+        continue
+      }
+
+      result.difficultyUpdated++
+      if (insight !== null) result.insightsCreated++
+    } catch {
+      result.errors++
+    }
+  }
+
+  return result
 }
 
 async function isMatchDayComplete(

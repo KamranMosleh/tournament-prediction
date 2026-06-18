@@ -116,6 +116,7 @@ export function LeagueHub({
   const scores = sortLeaderboard(computeLeaderboard({
     players, predictions, matches, tournamentPredictions,
     scoringMode: league.scoring_mode,
+    officialTopScorer: league.official_top_scorer_name,
   }))
 
   const matchesWithPredictions: MatchWithPrediction[] = matches.map(m => ({
@@ -166,7 +167,7 @@ export function LeagueHub({
     { id: 'matches',     label: 'Matches',   icon: <Calendar size={13} /> },
     { id: 'reveal',      label: 'Reveal',    icon: <Eye size={13} /> },
     { id: 'picks',       label: 'My Picks',  icon: <Trophy size={13} /> },
-    ...(currentPlayer.is_admin && !isArchived && league.sync_source === 'manual'
+    ...(currentPlayer.is_admin && !isArchived
       ? [{ id: 'results' as Tab, label: 'Results', icon: <Shield size={13} /> }]
       : []),
   ]
@@ -214,10 +215,10 @@ export function LeagueHub({
           </div>
 
           {/* Tabs */}
-          <div className="flex">
+          <div className="flex overflow-x-auto">
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors relative"
+                className="flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors relative"
                 style={{ color: tab === t.id ? 'var(--text)' : 'var(--text-muted)' }}>
                 {t.icon}
                 {t.label}
@@ -260,6 +261,7 @@ export function LeagueHub({
             syncState={syncState}
             syncMessage={syncMessage}
             readOnly={isArchived}
+            scoringMode={league.scoring_mode}
           />
         )}
         {tab === 'reveal' && (
@@ -286,7 +288,7 @@ export function LeagueHub({
           />
         )}
         {tab === 'results' && currentPlayer.is_admin && (
-          <ResultsForm matches={matches} leagueId={league.id} />
+          <ResultsForm matches={matches} league={league} />
         )}
       </div>
     </div>

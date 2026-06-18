@@ -16,6 +16,7 @@ export interface League {
   sync_source: SyncSource
   scoring_mode: ScoringMode
   telegram_url: string | null
+  official_top_scorer_name: string | null
   archived_at: string | null
   archived_by_user_id: string | null
   created_at: string
@@ -44,6 +45,7 @@ export interface Match {
   status: MatchStatus
   home_score: number | null
   away_score: number | null
+  result_winner_team: string | null
   match_day: number | null
   venue: string | null
   ai_insight: string | null

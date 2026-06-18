@@ -217,6 +217,12 @@ export async function generatePunditSummaryForMatchDay(
     return { status: 'skipped', reason: 'no finished matches' }
   }
 
+  const { data: scoringMatches } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('tournament_code', league.tournament_code)
+    .eq('tournament_season', league.tournament_season)
+
   const { data: players } = await supabase
     .from('players')
     .select('*')
@@ -239,9 +245,10 @@ export async function generatePunditSummaryForMatchDay(
   const scores = sortLeaderboard(computeLeaderboard({
     players: (players ?? []) as Player[],
     predictions: (predictions ?? []) as MatchPrediction[],
-    matches: matches as Match[],
+    matches: (scoringMatches ?? []) as Match[],
     tournamentPredictions: (tournamentPreds ?? []) as TournamentPrediction[],
     scoringMode: (league as League).scoring_mode,
+    officialTopScorer: (league as League).official_top_scorer_name,
   }))
 
   const leaderboardStr = scores
@@ -356,6 +363,14 @@ export async function generateMatchRecap(
 
   if (existing) return { status: 'skipped', reason: 'already exists' }
 
+  const { data: league } = await supabase
+    .from('leagues')
+    .select('scoring_mode')
+    .eq('id', leagueId)
+    .single()
+
+  if (!league) return { status: 'error', reason: 'League not found' }
+
   // Match must be finished with scores
   const { data: match } = await supabase
     .from('matches')
@@ -393,7 +408,14 @@ export async function generateMatchRecap(
   const promptPlayers: PlayerPredictionInput[] = (players as Player[]).map(p => {
     const pred = predMap.get(p.id)
     const pts = pred
-      ? matchPoints(pred.home_score, pred.away_score, match.home_score, match.away_score, match.stage)
+      ? matchPoints(
+          pred.home_score,
+          pred.away_score,
+          match.home_score,
+          match.away_score,
+          match.stage,
+          league.scoring_mode
+        )
       : 0
     return {
       name: p.display_name,

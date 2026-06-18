@@ -83,8 +83,8 @@ function PointsBadge({ pts, hasPrediction }: { pts: number; hasPrediction: boole
   const cfg =
     pts >= 3
       ? { label: `+${pts} pts`, color: 'var(--accent)', bg: 'var(--accent-glow)' }
-      : pts === 1
-      ? { label: '+1 pt', color: 'var(--gold)', bg: 'rgba(210,153,34,0.12)' }
+      : pts > 0
+      ? { label: `+${pts} ${pts === 1 ? 'pt' : 'pts'}`, color: 'var(--gold)', bg: 'rgba(210,153,34,0.12)' }
       : { label: '0 pts', color: 'var(--text-subtle)', bg: 'var(--surface-2)' }
   return (
     <span

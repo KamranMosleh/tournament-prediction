@@ -1,5 +1,10 @@
 import type { Match, MatchPrediction, TournamentPrediction, PlayerScore, Player, MatchStage, ScoringMode } from '@/types'
-import { getPickDeadlines, topScorerPointsForSubmittedAt, winnerPointsForSubmittedAt } from '@/lib/tournament-picks'
+import {
+  getPickDeadlines,
+  isDeadlinePassed,
+  topScorerPointsForSubmittedAt,
+  winnerPointsForSubmittedAt,
+} from '@/lib/tournament-picks'
 
 const STAGE_MULTIPLIERS: Record<MatchStage, number> = {
   group: 1,
@@ -25,14 +30,44 @@ export function matchPoints(
   return mode === 'multiplied' ? base * STAGE_MULTIPLIERS[stage] : base
 }
 
+export function normalizeFootballName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/['’`-]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+export function footballNamesMatch(left: string, right: string): boolean {
+  const normalizedLeft = normalizeFootballName(left)
+  const normalizedRight = normalizeFootballName(right)
+  return normalizedLeft.length > 0 && normalizedLeft === normalizedRight
+}
+
+export function deriveTournamentWinner(matches: Match[]): string | null {
+  const final = matches
+    .filter(match => match.stage === 'final')
+    .sort((a, b) => new Date(b.kickoff_time).getTime() - new Date(a.kickoff_time).getTime())
+    .find(match => match.status === 'finished')
+
+  if (!final) return null
+  if (final.result_winner_team?.trim()) return final.result_winner_team.trim()
+  if (final.home_score === null || final.away_score === null || final.home_score === final.away_score) {
+    return null
+  }
+  return final.home_score > final.away_score ? final.home_team : final.away_team
+}
+
 interface ScoreInput {
   players: Player[]
   predictions: MatchPrediction[]
   matches: Match[]
   tournamentPredictions: TournamentPrediction[]
   scoringMode?: ScoringMode
-  tournamentWinner?: string | null
-  goldenBoot?: string | null
+  officialTopScorer?: string | null
+  now?: Date
 }
 
 export function computeLeaderboard({
@@ -41,13 +76,16 @@ export function computeLeaderboard({
   matches,
   tournamentPredictions,
   scoringMode = 'multiplied',
-  tournamentWinner,
-  goldenBoot,
+  officialTopScorer,
+  now = new Date(),
 }: ScoreInput): PlayerScore[] {
   const finishedMatches = matches.filter(m =>
     m.status === 'finished' && m.home_score !== null && m.away_score !== null
   )
   const pickDeadlines = getPickDeadlines(matches)
+  const tournamentWinner = deriveTournamentWinner(matches)
+  const winnerAwardable = Boolean(tournamentWinner) && isDeadlinePassed(pickDeadlines.finalKickoff, now)
+  const topScorerAwardable = Boolean(officialTopScorer) && isDeadlinePassed(pickDeadlines.semiFinalKickoff, now)
 
   return players.map(player => {
     let totalMatchPoints = 0
@@ -57,12 +95,12 @@ export function computeLeaderboard({
     let formMaxPoints = 0
 
     for (const match of finishedMatches) {
-      const pts3 = STAGE_MULTIPLIERS[match.stage] * 3
+      const maxPoints = scoringMode === 'multiplied' ? STAGE_MULTIPLIERS[match.stage] * 3 : 3
       const isAfterJoin = player.joined_match_day == null ||
         match.match_day == null ||
         match.match_day >= player.joined_match_day
 
-      if (isAfterJoin) formMaxPoints += pts3
+      if (isAfterJoin) formMaxPoints += maxPoints
 
       const pred = predictions.find(p => p.player_id === player.id && p.match_id === match.id)
       if (!pred) continue
@@ -80,10 +118,10 @@ export function computeLeaderboard({
       const winnerSubmittedAt = tp.winner_submitted_at ?? tp.submitted_at
       const scorerSubmittedAt = tp.top_scorer_submitted_at ?? tp.submitted_at
 
-      if (tournamentWinner && tp.winner_team.toLowerCase() === tournamentWinner.toLowerCase()) {
+      if (winnerAwardable && tournamentWinner && footballNamesMatch(tp.winner_team, tournamentWinner)) {
         tournamentPoints += winnerPointsForSubmittedAt(winnerSubmittedAt, pickDeadlines)
       }
-      if (goldenBoot && tp.top_scorer_name.toLowerCase() === goldenBoot.toLowerCase()) {
+      if (topScorerAwardable && officialTopScorer && footballNamesMatch(tp.top_scorer_name, officialTopScorer)) {
         tournamentPoints += topScorerPointsForSubmittedAt(scorerSubmittedAt, pickDeadlines)
       }
     }

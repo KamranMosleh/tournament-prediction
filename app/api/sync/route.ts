@@ -114,6 +114,20 @@ export async function POST(req: NextRequest) {
       const { stage, group_name } = mapStage(m.stage ?? '', m.group ?? null)
       const status = mapStatus(m.status ?? '')
       const isFinished = status === 'finished'
+      const homeTeam = m.homeTeam?.shortName ?? m.homeTeam?.name ?? 'TBD'
+      const awayTeam = m.awayTeam?.shortName ?? m.awayTeam?.name ?? 'TBD'
+      const homeScore = isFinished ? (m.score?.fullTime?.home ?? null) : null
+      const awayScore = isFinished ? (m.score?.fullTime?.away ?? null) : null
+      const apiWinner = m.score?.winner
+      const resultWinnerTeam = stage === 'final' && isFinished
+        ? apiWinner === 'HOME_TEAM'
+          ? homeTeam
+          : apiWinner === 'AWAY_TEAM'
+            ? awayTeam
+            : homeScore !== null && awayScore !== null && homeScore !== awayScore
+              ? homeScore > awayScore ? homeTeam : awayTeam
+              : null
+        : null
 
       const { error } = await supabase.from('matches').upsert({
         tournament_code: tournamentCode,
@@ -121,12 +135,13 @@ export async function POST(req: NextRequest) {
         external_match_id: m.id,
         stage,
         group_name,
-        home_team: m.homeTeam?.shortName ?? m.homeTeam?.name ?? 'TBD',
-        away_team: m.awayTeam?.shortName ?? m.awayTeam?.name ?? 'TBD',
+        home_team: homeTeam,
+        away_team: awayTeam,
         kickoff_time: m.utcDate,
         status,
-        home_score: isFinished ? (m.score?.fullTime?.home ?? null) : null,
-        away_score: isFinished ? (m.score?.fullTime?.away ?? null) : null,
+        home_score: homeScore,
+        away_score: awayScore,
+        result_winner_team: resultWinnerTeam,
         match_day: m.matchday ?? null,
         venue: m.venue ?? null,
         last_synced_at: new Date().toISOString(),

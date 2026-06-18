@@ -1,6 +1,6 @@
 import { MatchCard } from './MatchCard'
 import { stageLabel, stageOrder } from '@/lib/utils'
-import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage } from '@/types'
+import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
 
 interface Props {
   matches: MatchWithPrediction[]
@@ -13,6 +13,7 @@ interface Props {
   syncState?: 'idle' | 'syncing' | 'success' | 'error'
   syncMessage?: string | null
   readOnly?: boolean
+  scoringMode?: ScoringMode
 }
 
 export function MatchList({
@@ -26,6 +27,7 @@ export function MatchList({
   syncState = 'idle',
   syncMessage = null,
   readOnly = false,
+  scoringMode = 'multiplied',
 }: Props) {
   if (matches.length === 0) {
     return (
@@ -90,13 +92,13 @@ export function MatchList({
 
           {/* Group sub-sections */}
           {stage === 'group'
-            ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} />
+            ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} />
             : (
               <div className="flex flex-col gap-3">
                 {stageMatches
                   .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                   .map(m => (
-                    <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} />
+                    <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} scoringMode={scoringMode} />
                   ))}
               </div>
             )
@@ -113,6 +115,7 @@ function GroupStageSection({
   recapMap,
   revealMap,
   readOnly = false,
+  scoringMode = 'multiplied',
 }: Props & { recapMap: Map<string, MatchRecap>; revealMap: Map<string, MatchRevealData> }) {
   const byGroup = new Map<string, MatchWithPrediction[]>()
   for (const m of matches) {
@@ -142,6 +145,7 @@ function GroupStageSection({
                   recap={recapMap.get(m.id)}
                   reveal={revealMap.get(m.id)}
                   readOnly={readOnly}
+                  scoringMode={scoringMode}
                 />
               ))}
           </div>

@@ -76,9 +76,12 @@ export function Leaderboard({ scores, currentPlayerId }: Props) {
                     background: i === 0 ? 'var(--gold)' : isMe ? 'var(--accent)' : 'var(--border)',
                   }} />
               </div>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-subtle)' }}>
+                Matches {player.match_points} · Tournament bonus {player.tournament_points}
+              </p>
               {/* Form % for late joiners */}
               {formPct !== null && isLate && (
-                <p className="text-xs mt-1" style={{ color: 'var(--text-subtle)' }}>
+                <p className="text-xs" style={{ color: 'var(--text-subtle)' }}>
                   {formPct}% form since joining
                 </p>
               )}

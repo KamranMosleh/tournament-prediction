@@ -78,7 +78,13 @@ Match prediction scoring:
 
 In multiplied mode, stage multipliers are group x1, round of 16 x2, quarter-final x3, semi-final x4, third place x4, and final x5.
 
-Tournament winner and top-scorer picks use time-weighted bonuses. Earlier correct picks earn more, and each pick locks at its configured tournament deadline.
+Tournament picks use time-weighted bonuses:
+
+- Correct winner: 30 points before the first kickoff, then 24 before the round of 16, 18 before the quarter-finals, 12 before the semi-finals, and 6 before the final.
+- Correct top scorer: 20 points before the first kickoff, then 16 before the round of 16, 12 before the quarter-finals, and 8 before the semi-finals.
+- Changing a saved pick moves that pick to the bonus tier active at the time of the change.
+- Winner picks lock at final kickoff. Top-scorer picks lock at semi-final kickoff.
+- Winner bonuses are awarded after the final is completed. Top-scorer bonuses are awarded after the lock deadline once a league admin records the official top scorer.
 
 Prediction visibility:
 

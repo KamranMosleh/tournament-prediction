@@ -9,12 +9,21 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const { match_id, league_id, home_score, away_score } = await req.json()
+    const { match_id, league_id, home_score, away_score, shootout_winner_team } = await req.json()
+    const homeScore = Number(home_score)
+    const awayScore = Number(away_score)
 
     if (!match_id || !league_id || home_score === undefined || away_score === undefined) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
-    if (home_score < 0 || away_score < 0 || home_score > 30 || away_score > 30) {
+    if (
+      !Number.isInteger(homeScore) ||
+      !Number.isInteger(awayScore) ||
+      homeScore < 0 ||
+      awayScore < 0 ||
+      homeScore > 30 ||
+      awayScore > 30
+    ) {
       return NextResponse.json({ error: 'Invalid scores' }, { status: 400 })
     }
 
@@ -34,13 +43,9 @@ export async function POST(req: NextRequest) {
     const player = verified.player
     const { data: league } = await supabase
       .from('leagues')
-      .select('tournament_code, tournament_season, archived_at')
+      .select('tournament_code, tournament_season, sync_source, archived_at')
       .eq('id', player.league_id)
       .single()
-
-    if (league?.archived_at) {
-      return NextResponse.json({ error: 'This league is archived and read-only' }, { status: 409 })
-    }
 
     if (
       !league ||
@@ -49,10 +54,37 @@ export async function POST(req: NextRequest) {
     ) {
       return NextResponse.json({ error: 'Forbidden - match is outside this league tournament' }, { status: 403 })
     }
+    if (league.archived_at) {
+      return NextResponse.json({ error: 'This league is archived and read-only' }, { status: 409 })
+    }
+    if (league.sync_source !== 'manual') {
+      return NextResponse.json({ error: 'Match results are managed by automatic sync' }, { status: 409 })
+    }
+
+    let resultWinnerTeam: string | null = null
+    if (match.stage === 'final') {
+      if (homeScore > awayScore) {
+        resultWinnerTeam = match.home_team
+      } else if (awayScore > homeScore) {
+        resultWinnerTeam = match.away_team
+      } else if (shootout_winner_team === match.home_team || shootout_winner_team === match.away_team) {
+        resultWinnerTeam = shootout_winner_team
+      } else {
+        return NextResponse.json(
+          { error: 'Select the penalty shootout winner for a tied final' },
+          { status: 400 }
+        )
+      }
+    }
 
     const { data, error } = await supabase
       .from('matches')
-      .update({ home_score, away_score, status: 'finished' })
+      .update({
+        home_score: homeScore,
+        away_score: awayScore,
+        status: 'finished',
+        result_winner_team: resultWinnerTeam,
+      })
       .eq('id', match_id)
       .select()
       .single()

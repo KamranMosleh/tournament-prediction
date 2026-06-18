@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS leagues (
                       CHECK (scoring_mode IN ('multiplied', 'flat')),
   -- Optional Telegram group invite link set by admin
   telegram_url      TEXT,
+  official_top_scorer_name TEXT,
   archived_at       TIMESTAMPTZ,
   archived_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ DEFAULT NOW()
@@ -63,6 +64,9 @@ ALTER TABLE leagues
 ALTER TABLE leagues
   ADD COLUMN IF NOT EXISTS archived_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
+ALTER TABLE leagues
+  ADD COLUMN IF NOT EXISTS official_top_scorer_name TEXT;
+
 DO $$ 
 BEGIN
   ALTER TABLE leagues
@@ -88,6 +92,7 @@ CREATE TABLE IF NOT EXISTS matches (
                       CHECK (status IN ('open','locked','finished')),
   home_score        INTEGER CHECK (home_score >= 0),
   away_score        INTEGER CHECK (away_score >= 0),
+  result_winner_team TEXT,
   match_day         INTEGER,
   venue             TEXT,
   last_synced_at    TIMESTAMPTZ,
@@ -97,6 +102,9 @@ CREATE TABLE IF NOT EXISTS matches (
   ai_difficulty     TEXT CHECK (ai_difficulty IN ('Easy', 'Tricky', 'Unpredictable')),
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE matches
+  ADD COLUMN IF NOT EXISTS result_winner_team TEXT;
 
 CREATE TABLE IF NOT EXISTS match_predictions (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),

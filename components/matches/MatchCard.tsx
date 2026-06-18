@@ -2,11 +2,12 @@
 
 import { useState, useCallback } from 'react'
 import { Check, Loader2, MapPin, Sparkles } from 'lucide-react'
-import type { MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData } from '@/types'
+import type { MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
 import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
 import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPanel'
+import { matchPoints } from '@/lib/scoring'
 
 interface Props {
   match: MatchWithPrediction
@@ -14,6 +15,7 @@ interface Props {
   recap?: MatchRecap | null
   reveal?: MatchRevealData
   readOnly?: boolean
+  scoringMode?: ScoringMode
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -24,7 +26,7 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, recap, reveal, readOnly = false }: Props) {
+export function MatchCard({ match, playerId, recap, reveal, readOnly = false, scoringMode = 'multiplied' }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -36,11 +38,22 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false }: 
 
   // Points earned on finished match
   let pointsEarned: number | null = null
+  let pointsKind: 'exact' | 'outcome' | 'wrong' = 'wrong'
   if (match.status === 'finished' && match.prediction && match.home_score !== null && match.away_score !== null) {
     const p = match.prediction
-    if (p.home_score === match.home_score && p.away_score === match.away_score) pointsEarned = 3
-    else if (Math.sign(p.home_score - p.away_score) === Math.sign(match.home_score - match.away_score)) pointsEarned = 1
-    else pointsEarned = 0
+    pointsEarned = matchPoints(
+      p.home_score,
+      p.away_score,
+      match.home_score,
+      match.away_score,
+      match.stage,
+      scoringMode
+    )
+    if (p.home_score === match.home_score && p.away_score === match.away_score) {
+      pointsKind = 'exact'
+    } else if (Math.sign(p.home_score - p.away_score) === Math.sign(match.home_score - match.away_score)) {
+      pointsKind = 'outcome'
+    }
   }
 
   const save = useCallback(async (home: string, away: string) => {
@@ -124,7 +137,7 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false }: 
               </span>
             )}
           </div>
-          {pointsEarned !== null && <PointsBadge pts={pointsEarned} />}
+          {pointsEarned !== null && <PointsBadge pts={pointsEarned} kind={pointsKind} />}
         </div>
       )}
 
@@ -168,11 +181,11 @@ function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {
   )
 }
 
-function PointsBadge({ pts }: { pts: number }) {
+function PointsBadge({ pts, kind }: { pts: number; kind: 'exact' | 'outcome' | 'wrong' }) {
   const cfg =
-    pts === 3 ? { label: '+3 pts', color: 'var(--accent)',      bg: 'var(--accent-glow)',           border: 'rgba(63,185,80,0.3)' } :
-    pts === 1 ? { label: '+1 pt',  color: 'var(--gold)',        bg: 'rgba(210,153,34,0.12)',         border: 'rgba(210,153,34,0.3)' } :
-                { label: '0 pts',  color: 'var(--text-subtle)', bg: 'var(--surface-2)',              border: 'var(--border)' }
+    kind === 'exact' ? { label: `+${pts} pts`, color: 'var(--accent)',      bg: 'var(--accent-glow)',           border: 'rgba(63,185,80,0.3)' } :
+    kind === 'outcome' ? { label: `+${pts} ${pts === 1 ? 'pt' : 'pts'}`, color: 'var(--gold)', bg: 'rgba(210,153,34,0.12)', border: 'rgba(210,153,34,0.3)' } :
+                         { label: '0 pts', color: 'var(--text-subtle)', bg: 'var(--surface-2)', border: 'var(--border)' }
   return (
     <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
       style={{ color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}` }}>

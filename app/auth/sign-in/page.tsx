@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
-import { Loader2, LogIn } from 'lucide-react'
+import { Eye, EyeOff, Loader2, LogIn } from 'lucide-react'
 import { safeNextPath, withNext } from '@/lib/auth-redirect'
 import { createClient } from '@/lib/supabase/client'
 
@@ -72,10 +72,34 @@ function AuthShell({ title, subtitle, next, children }: { title: string; subtitl
 }
 
 function Field({ label, type, value, onChange, onEnter }: { label: string; type: string; value: string; onChange: (value: string) => void; onEnter?: () => void }) {
+  const [showPassword, setShowPassword] = useState(false)
+  const isPassword = type === 'password'
+
   return (
     <div>
       <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>{label}</label>
-      <input type={type} value={value} onChange={event => onChange(event.target.value)} onKeyDown={event => event.key === 'Enter' && onEnter?.()} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: 'var(--bg)', border: '1.5px solid var(--border)', color: 'var(--text)' }} />
+      <div className="relative">
+        <input
+          type={isPassword && showPassword ? 'text' : type}
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          onKeyDown={event => event.key === 'Enter' && onEnter?.()}
+          className={`w-full px-3 py-2.5 rounded-lg text-sm outline-none ${isPassword ? 'pr-11' : ''}`}
+          style={{ background: 'var(--bg)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(visible => !visible)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

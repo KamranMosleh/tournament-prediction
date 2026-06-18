@@ -20,6 +20,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { data: league } = await supabase
+      .from('leagues')
+      .select('archived_at')
+      .eq('id', verified.player.league_id)
+      .single()
+
+    if (league?.archived_at) {
+      return NextResponse.json({ error: 'This league is archived and read-only' }, { status: 409 })
+    }
+
     // Check match is still open
     const { data: match } = await supabase
       .from('matches')

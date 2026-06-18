@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS leagues (
                       CHECK (scoring_mode IN ('multiplied', 'flat')),
   -- Optional Telegram group invite link set by admin
   telegram_url      TEXT,
+  archived_at       TIMESTAMPTZ,
+  archived_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -53,6 +55,12 @@ ALTER TABLE leagues
 
 ALTER TABLE players
   ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
+ALTER TABLE leagues
+  ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+ALTER TABLE leagues
+  ADD COLUMN IF NOT EXISTS archived_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
 DO $$ 
 BEGIN
@@ -162,6 +170,7 @@ CREATE TABLE IF NOT EXISTS match_recaps (
 CREATE INDEX IF NOT EXISTS idx_players_league       ON players(league_id);
 CREATE INDEX IF NOT EXISTS idx_players_token        ON players(session_token);
 CREATE INDEX IF NOT EXISTS idx_players_user         ON players(user_id);
+CREATE INDEX IF NOT EXISTS idx_leagues_archived_at  ON leagues(archived_at);
 CREATE INDEX IF NOT EXISTS idx_predictions_player   ON match_predictions(player_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_match    ON match_predictions(match_id);
 CREATE INDEX IF NOT EXISTS idx_matches_tournament   ON matches(tournament_code, tournament_season);

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
+  Archive,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -17,7 +18,7 @@ import {
   Users,
 } from 'lucide-react'
 import type { League, Player, Session, SessionsMap } from '@/types'
-import { getSessions, saveSession } from '@/lib/utils'
+import { getSessions, removeSession, saveSession } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
 // Tournaments available on football-data.org free tier
@@ -34,19 +35,36 @@ const TOURNAMENTS = [
 ]
 
 type AccountPlayerRow = Player & { leagues: League | League[] | null }
+type LeagueEntry = [string, Session, boolean]
 
 export default function HomePage() {
   const router = useRouter()
   const [sessions, setSessions] = useState<SessionsMap>({})
   const [accountEmail, setAccountEmail] = useState<string | null>(null)
-  const [accountLeagues, setAccountLeagues] = useState<Array<[string, Session]>>([])
+  const [accountLeagues, setAccountLeagues] = useState<LeagueEntry[]>([])
   const [authLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
-    setSessions(getSessions())
-
     const supabase = createClient()
     let mounted = true
+    const savedSessions = getSessions()
+    setSessions(savedSessions)
+
+    const savedCodes = Object.keys(savedSessions)
+    if (savedCodes.length > 0) {
+      supabase
+        .from('leagues')
+        .select('invite_code')
+        .in('invite_code', savedCodes)
+        .then(({ data, error }) => {
+          if (!mounted || error) return
+          const existingCodes = new Set((data ?? []).map(row => row.invite_code.toUpperCase()))
+          for (const code of savedCodes) {
+            if (!existingCodes.has(code.toUpperCase())) removeSession(code)
+          }
+          setSessions(getSessions())
+        })
+    }
 
     const loadAccount = async () => {
       setAuthLoading(true)
@@ -83,9 +101,9 @@ export default function HomePage() {
             invite_code: league.invite_code,
             is_admin: row.is_admin,
           }
-          return [league.invite_code, session] as [string, Session]
+          return [league.invite_code, session, Boolean(league.archived_at)] as LeagueEntry
         })
-        .filter((entry): entry is [string, Session] => Boolean(entry))
+        .filter((entry): entry is LeagueEntry => Boolean(entry))
 
       setAccountLeagues(entries)
       setAuthLoading(false)
@@ -102,7 +120,10 @@ export default function HomePage() {
 
   const legacyLeagues = Object.entries(sessions)
     .filter(([code]) => !accountLeagues.some(([accountCode]) => accountCode.toUpperCase() === code.toUpperCase()))
+    .map(([code, session]) => [code, session, false] as LeagueEntry)
 
+  const activeAccountLeagues = accountLeagues.filter(([, , archived]) => !archived)
+  const archivedAccountLeagues = accountLeagues.filter(([, , archived]) => archived)
   const hasLeagueCards = accountLeagues.length > 0 || legacyLeagues.length > 0
   const isSignedIn = Boolean(accountEmail)
 
@@ -139,11 +160,19 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr] md:items-start">
           {hasLeagueCards && (
             <div className="order-1 md:order-3 md:col-start-2 md:row-start-2 flex flex-col gap-4">
-              {accountLeagues.length > 0 && (
+              {activeAccountLeagues.length > 0 && (
                 <YourLeaguesCard
                   title="Your Leagues"
                   description="Synced to your account."
-                  leagues={accountLeagues}
+                  leagues={activeAccountLeagues}
+                />
+              )}
+              {archivedAccountLeagues.length > 0 && (
+                <YourLeaguesCard
+                  title="Archived Leagues"
+                  description="Read-only history. Owners can restore them."
+                  leagues={archivedAccountLeagues}
+                  archived
                 />
               )}
               {legacyLeagues.length > 0 && (
@@ -241,24 +270,31 @@ function AuthLink({ href, icon, label, strong }: { href: string; icon: ReactNode
   )
 }
 
-function YourLeaguesCard({ title, description, leagues }: { title: string; description: string; leagues: Array<[string, Session]> }) {
+function YourLeaguesCard({ title, description, leagues, archived = false }: {
+  title: string
+  description: string
+  leagues: LeagueEntry[]
+  archived?: boolean
+}) {
   return (
     <Card compact>
       <CardHeader
-        icon={<ShieldCheck size={15} style={{ color: 'var(--accent)' }} />}
+        icon={archived
+          ? <Archive size={15} style={{ color: 'var(--gold)' }} />
+          : <ShieldCheck size={15} style={{ color: 'var(--accent)' }} />}
         label={title}
         description={description}
       />
       <div className="flex flex-col gap-2">
-        {leagues.map(([code, s]) => (
-          <YourLeagueRow key={code} code={code} session={s} />
+        {leagues.map(([code, s, isArchived]) => (
+          <YourLeagueRow key={code} code={code} session={s} archived={isArchived} />
         ))}
       </div>
     </Card>
   )
 }
 
-function YourLeagueRow({ code, session }: { code: string; session: Session }) {
+function YourLeagueRow({ code, session, archived }: { code: string; session: Session; archived: boolean }) {
   const router = useRouter()
   return (
     <button
@@ -272,7 +308,7 @@ function YourLeagueRow({ code, session }: { code: string; session: Session }) {
         className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
         style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}
       >
-        <Trophy size={14} />
+        {archived ? <Archive size={14} /> : <Trophy size={14} />}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate leading-tight" style={{ color: 'var(--text)' }}>
@@ -282,6 +318,7 @@ function YourLeagueRow({ code, session }: { code: string; session: Session }) {
           Playing as <span style={{ color: 'var(--text)' }}>{session.display_name}</span>
           {' - '}
           <span className="font-mono">{code}</span>
+          {archived && <span style={{ color: 'var(--gold)' }}> - Archived</span>}
         </p>
       </div>
       <ExternalLink size={13} style={{ color: 'var(--text-subtle)' }} className="shrink-0" />

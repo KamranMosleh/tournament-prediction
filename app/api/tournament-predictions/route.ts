@@ -26,12 +26,15 @@ export async function POST(req: NextRequest) {
 
     const { data: league } = await supabase
       .from('leagues')
-      .select('tournament_code, tournament_season')
+      .select('tournament_code, tournament_season, archived_at')
       .eq('id', league_id)
       .single()
 
     if (!league) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 })
+    }
+    if (league.archived_at) {
+      return NextResponse.json({ error: 'This league is archived and read-only' }, { status: 409 })
     }
 
     const { data: tournamentMatches } = await supabase

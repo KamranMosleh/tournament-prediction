@@ -34,9 +34,13 @@ export async function POST(req: NextRequest) {
     const player = verified.player
     const { data: league } = await supabase
       .from('leagues')
-      .select('tournament_code, tournament_season')
+      .select('tournament_code, tournament_season, archived_at')
       .eq('id', player.league_id)
       .single()
+
+    if (league?.archived_at) {
+      return NextResponse.json({ error: 'This league is archived and read-only' }, { status: 409 })
+    }
 
     if (
       !league ||

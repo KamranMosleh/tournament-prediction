@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
     .from('leagues')
     .select('tournament_code, tournament_season')
     .eq('sync_source', 'api')
+    .is('archived_at', null)
 
   if (!leagues?.length) return jsonResponse({ ok: true, message: 'No api-sync leagues' })
 

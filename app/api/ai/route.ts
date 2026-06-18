@@ -34,6 +34,19 @@ export async function POST(req: NextRequest) {
     let aiEnrichment: OpenMatchEnrichmentResult
 
     if (tournamentCode) {
+      const { data: activeLeague } = await supabase
+        .from('leagues')
+        .select('id')
+        .eq('tournament_code', tournamentCode)
+        .eq('tournament_season', tournamentSeason)
+        .is('archived_at', null)
+        .limit(1)
+        .maybeSingle()
+
+      if (!activeLeague) {
+        return NextResponse.json({ skipped: true, reason: 'No active leagues for this tournament' })
+      }
+
       aiEnrichment = await enrichOpenMatchesForTournament(
         tournamentCode,
         tournamentSeason,
@@ -42,9 +55,9 @@ export async function POST(req: NextRequest) {
       )
     } else {
       const { data: pairs, error } = await supabase
-        .from('matches')
+        .from('leagues')
         .select('tournament_code, tournament_season')
-        .eq('status', 'open')
+        .is('archived_at', null)
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -85,6 +98,19 @@ export async function POST(req: NextRequest) {
     const { league_id, match_day } = body
     if (!league_id || !match_day) {
       return NextResponse.json({ error: 'league_id and match_day required' }, { status: 400 })
+    }
+
+    const { data: league } = await supabase
+      .from('leagues')
+      .select('archived_at')
+      .eq('id', league_id)
+      .maybeSingle()
+
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 })
+    }
+    if (league.archived_at) {
+      return NextResponse.json({ error: 'This league is archived and read-only' }, { status: 409 })
     }
 
     const res = await generatePunditSummaryForMatchDay(league_id, Number(match_day), supabase)

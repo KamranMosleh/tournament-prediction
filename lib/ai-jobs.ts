@@ -287,6 +287,7 @@ export async function autoGeneratePunditSummariesForTournament(
     .select('id')
     .eq('tournament_code', tournamentCode)
     .eq('tournament_season', tournamentSeason)
+    .is('archived_at', null)
 
   if (!leagues?.length) return { created: 0, skipped: 0, errors: 0 }
 
@@ -459,6 +460,7 @@ export async function autoGenerateMatchRecapsForMatch(
     .select('id')
     .eq('tournament_code', tournamentCode)
     .eq('tournament_season', tournamentSeason)
+    .is('archived_at', null)
 
   if (!leagues?.length) return { created: 0, skipped: 0, errors: 0 }
 

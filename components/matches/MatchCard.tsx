@@ -14,6 +14,7 @@ interface Props {
   sessionToken: string
   recap?: MatchRecap | null
   reveal?: MatchRevealData
+  readOnly?: boolean
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -24,12 +25,12 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, sessionToken, recap, reveal }: Props) {
+export function MatchCard({ match, playerId, sessionToken, recap, reveal, readOnly = false }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
 
-  const isLocked = match.status !== 'open'
+  const isLocked = match.status !== 'open' || readOnly
   const { date, time } = formatKickoff(match.kickoff_time)
   const countdown = timeUntil(match.kickoff_time)
   const diff = match.ai_difficulty ? DIFFICULTY_CONFIG[match.ai_difficulty] : null

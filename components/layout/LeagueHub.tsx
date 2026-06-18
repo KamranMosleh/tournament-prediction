@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { BarChart2, Calendar, Trophy, Shield, Send, Home, Eye } from 'lucide-react'
+import { Archive, BarChart2, Calendar, Trophy, Shield, Send, Home, Eye } from 'lucide-react'
 import type {
   League, Player, Match, MatchPrediction, TournamentPrediction,
   MatchdaySummary, MatchRecap, Session, MatchWithPrediction
@@ -18,6 +18,7 @@ import { PredictionsRevealTab } from '@/components/predictions/PredictionsReveal
 import { createClient } from '@/lib/supabase/client'
 import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
 import { buildMatchRevealData } from '@/lib/prediction-reveal'
+import { LeagueLifecycleDialog } from '@/components/league/LeagueLifecycleDialog'
 
 type Tab = 'leaderboard' | 'matches' | 'reveal' | 'picks' | 'results'
 
@@ -166,10 +167,12 @@ export function LeagueHub({
 
   // Not joined
   if (session === null) {
-    return <NotJoined code={league.invite_code} leagueName={league.name} router={router} />
+    return <NotJoined code={league.invite_code} leagueName={league.name} archived={Boolean(league.archived_at)} router={router} />
   }
 
   // Computed values
+  const isArchived = Boolean(league.archived_at)
+  const isOwner = Boolean(session.user_id && session.user_id === league.created_by_user_id)
   const scores = sortLeaderboard(computeLeaderboard({
     players, predictions, matches, tournamentPredictions,
     scoringMode: league.scoring_mode,
@@ -226,7 +229,7 @@ export function LeagueHub({
     { id: 'matches',     label: 'Matches',   icon: <Calendar size={13} /> },
     { id: 'reveal',      label: 'Reveal',    icon: <Eye size={13} /> },
     { id: 'picks',       label: 'My Picks',  icon: <Trophy size={13} /> },
-    ...(session.is_admin && league.sync_source === 'manual'
+    ...(session.is_admin && !isArchived && league.sync_source === 'manual'
       ? [{ id: 'results' as Tab, label: 'Results', icon: <Shield size={13} /> }]
       : []),
   ]
@@ -258,6 +261,7 @@ export function LeagueHub({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              {isOwner && <LeagueLifecycleDialog league={league} />}
               {league.telegram_url && (
                 <a href={league.telegram_url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium"
@@ -289,6 +293,15 @@ export function LeagueHub({
 
       {/* Tab content */}
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-5">
+        {isArchived && (
+          <div
+            className="mb-4 flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs leading-relaxed"
+            style={{ background: 'rgba(210,153,34,0.1)', border: '1px solid rgba(210,153,34,0.3)', color: 'var(--gold)' }}
+          >
+            <Archive size={14} className="shrink-0 mt-0.5" />
+            <span>This league is archived and read-only. Standings and history remain visible, but joining and all updates are disabled.</span>
+          </div>
+        )}
         {tab === 'leaderboard' && (
           <div className="flex flex-col gap-4">
             {latestSummary && <PunditsCard summary={latestSummary} />}
@@ -303,10 +316,11 @@ export function LeagueHub({
             recaps={recaps}
             reveals={revealMap}
             isAdmin={session.is_admin}
-            canImportFixtures={league.sync_source === 'api'}
+            canImportFixtures={!isArchived && league.sync_source === 'api'}
             onImportFixtures={handleImportFixtures}
             syncState={syncState}
             syncMessage={syncMessage}
+            readOnly={isArchived}
           />
         )}
         {tab === 'reveal' && (
@@ -330,6 +344,7 @@ export function LeagueHub({
             topScorerLocked={topScorerLocked}
             finalKickoff={deadlines.finalKickoff}
             semiFinalKickoff={deadlines.semiFinalKickoff}
+            readOnly={isArchived}
           />
         )}
         {tab === 'results' && session.is_admin && (
@@ -365,18 +380,27 @@ function PunditsCard({ summary }: { summary: MatchdaySummary }) {
   )
 }
 
-function NotJoined({ code, leagueName, router }: { code: string; leagueName: string; router: ReturnType<typeof useRouter> }) {
+function NotJoined({ code, leagueName, archived, router }: {
+  code: string
+  leagueName: string
+  archived: boolean
+  router: ReturnType<typeof useRouter>
+}) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-xs text-center">
         <div className="text-5xl mb-4">⚽</div>
         <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text)' }}>{leagueName}</h1>
-        <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>You haven't joined this league yet.</p>
-        <button onClick={() => router.push(`/join/${code}`)}
-          className="w-full py-2.5 rounded-xl font-semibold text-sm mb-2"
-          style={{ background: 'var(--accent)', color: '#000' }}>
-          Join This League
-        </button>
+        <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+          {archived ? 'This league is archived and is not accepting new members.' : "You haven't joined this league yet."}
+        </p>
+        {!archived && (
+          <button onClick={() => router.push(`/join/${code}`)}
+            className="w-full py-2.5 rounded-xl font-semibold text-sm mb-2"
+            style={{ background: 'var(--accent)', color: '#000' }}>
+            Join This League
+          </button>
+        )}
         <button onClick={() => router.push('/')}
           className="w-full py-2.5 rounded-xl text-sm"
           style={{ color: 'var(--text-muted)' }}>

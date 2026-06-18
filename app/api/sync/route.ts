@@ -82,6 +82,39 @@ export async function POST(req: NextRequest) {
   const tournamentCode: string = body.tournament_code ?? 'WC'
   const season: number = body.season ?? new Date().getFullYear()
 
+  if (leagueId) {
+    const { data: league } = await supabase
+      .from('leagues')
+      .select('archived_at')
+      .eq('id', leagueId)
+      .maybeSingle()
+
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 })
+    }
+    if (league.archived_at) {
+      return NextResponse.json({ error: 'This league is archived and read-only' }, { status: 409 })
+    }
+  } else {
+    const { data: activeLeague } = await supabase
+      .from('leagues')
+      .select('id')
+      .eq('tournament_code', tournamentCode)
+      .eq('tournament_season', season)
+      .eq('sync_source', 'api')
+      .is('archived_at', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (!activeLeague) {
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: 'No active API-sync leagues for this tournament',
+      })
+    }
+  }
+
   const key = process.env.FOOTBALL_DATA_API_KEY
   if (!key)
     return NextResponse.json({ error: 'FOOTBALL_DATA_API_KEY not configured' }, { status: 500 })

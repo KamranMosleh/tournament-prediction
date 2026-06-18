@@ -13,6 +13,7 @@ interface Props {
   onImportFixtures?: () => void
   syncState?: 'idle' | 'syncing' | 'success' | 'error'
   syncMessage?: string | null
+  readOnly?: boolean
 }
 
 export function MatchList({
@@ -26,6 +27,7 @@ export function MatchList({
   onImportFixtures,
   syncState = 'idle',
   syncMessage = null,
+  readOnly = false,
 }: Props) {
   if (matches.length === 0) {
     return (
@@ -90,13 +92,13 @@ export function MatchList({
 
           {/* Group sub-sections */}
           {stage === 'group'
-            ? <GroupStageSection matches={stageMatches} playerId={playerId} sessionToken={sessionToken} recapMap={recapMap} revealMap={reveals} />
+            ? <GroupStageSection matches={stageMatches} playerId={playerId} sessionToken={sessionToken} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} />
             : (
               <div className="flex flex-col gap-3">
                 {stageMatches
                   .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                   .map(m => (
-                    <MatchCard key={m.id} match={m} playerId={playerId} sessionToken={sessionToken} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} />
+                    <MatchCard key={m.id} match={m} playerId={playerId} sessionToken={sessionToken} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} />
                   ))}
               </div>
             )
@@ -113,6 +115,7 @@ function GroupStageSection({
   sessionToken,
   recapMap,
   revealMap,
+  readOnly = false,
 }: Props & { recapMap: Map<string, MatchRecap>; revealMap: Map<string, MatchRevealData> }) {
   const byGroup = new Map<string, MatchWithPrediction[]>()
   for (const m of matches) {
@@ -142,6 +145,7 @@ function GroupStageSection({
                   sessionToken={sessionToken}
                   recap={recapMap.get(m.id)}
                   reveal={revealMap.get(m.id)}
+                  readOnly={readOnly}
                 />
               ))}
           </div>

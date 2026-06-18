@@ -34,6 +34,9 @@ export async function POST(req: NextRequest) {
     if (!league) {
       return NextResponse.json({ error: 'League not found. Check your invite code.' }, { status: 404 })
     }
+    if (league.archived_at) {
+      return NextResponse.json({ error: 'This league is archived and cannot accept new members' }, { status: 409 })
+    }
 
     const { data: existingForAccount } = await supabase
       .from('players')
@@ -59,27 +62,10 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (existingByName) {
-      if (existingByName.user_id && existingByName.user_id !== user.id) {
-        return NextResponse.json({ error: 'That display name is already taken in this league' }, { status: 409 })
-      }
-
-      const { data: updated, error: updateError } = await supabase
-        .from('players')
-        .update({ session_token: crypto.randomUUID(), user_id: user.id })
-        .eq('id', existingByName.id)
-        .select()
-        .single()
-
-      if (updateError || !updated) {
-        return NextResponse.json({ error: 'Failed to recover player' }, { status: 500 })
-      }
-
-      return NextResponse.json({
-        league,
-        player: updated,
-        session: toSession(updated as Player, league as League),
-        recovered: true,
-      })
+      const error = existingByName.user_id
+        ? 'That display name is already taken in this league'
+        : 'That name belongs to an unclaimed legacy player and cannot be claimed by name'
+      return NextResponse.json({ error }, { status: 409 })
     }
 
     const { data: player, error } = await supabase

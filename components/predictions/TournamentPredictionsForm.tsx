@@ -32,6 +32,7 @@ interface Props {
   topScorerLocked: boolean
   finalKickoff: string | null
   semiFinalKickoff: string | null
+  readOnly?: boolean
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -48,6 +49,7 @@ export function TournamentPredictionsForm({
   topScorerLocked,
   finalKickoff,
   semiFinalKickoff,
+  readOnly = false,
 }: Props) {
   const [winner, setWinner] = useState(existing?.winner_team ?? '')
   const [scorer, setScorer] = useState(existing?.top_scorer_name ?? '')
@@ -155,6 +157,28 @@ export function TournamentPredictionsForm({
       scorer: pick?.top_scorer_name || '—',
     }
   })
+
+  if (readOnly) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Lock size={16} style={{ color: 'var(--gold)' }} />
+            <h3 className="font-semibold" style={{ color: 'var(--text)' }}>Archived league - read-only</h3>
+          </div>
+          {existing ? (
+            <div className="flex flex-col gap-3">
+              <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={existing.winner_team || 'Not submitted'} />
+              <PredRow icon={<User size={14} style={{ color: 'var(--blue)' }} />} label="Golden Boot" value={existing.top_scorer_name || 'Not submitted'} />
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No tournament picks submitted.</p>
+          )}
+        </div>
+        <LeaguePicksCard rows={leaguePickRows} />
+      </div>
+    )
+  }
 
   if (allLocked) {
     return (

@@ -16,6 +16,8 @@ export interface League {
   sync_source: SyncSource
   scoring_mode: ScoringMode
   telegram_url: string | null
+  archived_at: string | null
+  archived_by_user_id: string | null
   created_at: string
 }
 

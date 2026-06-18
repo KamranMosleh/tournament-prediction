@@ -172,3 +172,4 @@ supabase/
 
 Full architecture, data model, feature spec, and API setup guides live in `docs/`.
 For the production daily + match-window sync setup on Vercel Hobby, see [`docs/SUPABASE_VERCEL_SYNC_SETUP.md`](docs/SUPABASE_VERCEL_SYNC_SETUP.md).
+For owner-only archive/delete behavior and its database migration, see [`docs/LEAGUE_LIFECYCLE.md`](docs/LEAGUE_LIFECYCLE.md).

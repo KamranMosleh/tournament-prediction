@@ -71,17 +71,13 @@ export function HomeDashboard({ email, leagues }: { email: string; leagues: Dash
           </div>
         </header>
 
-        <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr] md:items-start">
-          <div className="md:row-span-2">
-            <CreateLeagueCard />
+        <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr] md:items-start">
+          <div className="flex flex-col gap-4">
+            {active.length > 0 && <LeagueList title="Your Leagues" leagues={active} />}
+            <JoinLeagueCard />
+            {archived.length > 0 && <LeagueList title="Archived Leagues" leagues={archived} archived />}
           </div>
-          <JoinLeagueCard />
-          {(active.length > 0 || archived.length > 0) && (
-            <div className="flex flex-col gap-4">
-              {active.length > 0 && <LeagueList title="Your Leagues" leagues={active} />}
-              {archived.length > 0 && <LeagueList title="Archived Leagues" leagues={archived} archived />}
-            </div>
-          )}
+          <CreateLeagueCard />
         </div>
       </div>
     </main>
@@ -177,9 +173,16 @@ function CreateLeagueCard() {
         </div>
         <button onClick={() => setShowAdvanced(value => !value)} className="flex items-center gap-1 text-xs w-fit" style={{ color: 'var(--text-subtle)' }}>
           {showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          {showAdvanced ? 'Hide options' : 'Add Telegram link'}
+          {showAdvanced ? 'Hide options' : 'Add Telegram / WhatsApp Group Link'}
         </button>
-        {showAdvanced && <Field label="Telegram group link (optional)" placeholder="https://t.me/..." value={telegram} onChange={setTelegram} />}
+        {showAdvanced && (
+          <Field
+            label="Telegram / WhatsApp group link (optional)"
+            placeholder="https://t.me/... or https://chat.whatsapp.com/..."
+            value={telegram}
+            onChange={setTelegram}
+          />
+        )}
         {error && <p className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}
         <ActionButton onClick={handleCreate} disabled={!ready || loading} loading={loading} label="Create League" color="var(--accent)" />
       </div>

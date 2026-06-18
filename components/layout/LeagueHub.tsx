@@ -181,11 +181,14 @@ export function LeagueHub({
           <div className="flex items-start justify-between gap-2 mb-2.5">
             <div className="flex items-center gap-2 min-w-0">
               <button onClick={() => router.push('/')} title="All leagues"
-                className="p-1.5 rounded-lg shrink-0 transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                <Home size={14} />
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shrink-0 text-xs font-semibold transition-colors"
+                style={{
+                  background: 'var(--accent-glow)',
+                  border: '1px solid rgba(63,185,80,0.3)',
+                  color: 'var(--accent)',
+                }}>
+                <Home size={16} />
+                Home
               </button>
               <div className="min-w-0">
                 <h1 className="font-bold text-sm leading-tight truncate" style={{ color: 'var(--text)' }}>

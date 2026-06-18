@@ -11,7 +11,6 @@ import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPane
 interface Props {
   match: MatchWithPrediction
   playerId: string
-  sessionToken: string
   recap?: MatchRecap | null
   reveal?: MatchRevealData
   readOnly?: boolean
@@ -25,7 +24,7 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, sessionToken, recap, reveal, readOnly = false }: Props) {
+export function MatchCard({ match, playerId, recap, reveal, readOnly = false }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -50,13 +49,13 @@ export function MatchCard({ match, playerId, sessionToken, recap, reveal, readOn
     try {
       const res = await fetch('/api/predictions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ match_id: match.id, player_id: playerId, home_score: Number(home), away_score: Number(away) }),
       })
       setSaveState(res.ok ? 'saved' : 'error')
       if (res.ok) setTimeout(() => setSaveState('idle'), 2500)
     } catch { setSaveState('error') }
-  }, [match.id, playerId, sessionToken, isLocked])
+  }, [match.id, playerId, isLocked])
 
   return (
     <div className="rounded-xl overflow-hidden"

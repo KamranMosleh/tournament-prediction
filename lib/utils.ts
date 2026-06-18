@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import type { MatchStage, SessionsMap, Session } from '@/types'
+import type { MatchStage } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -51,28 +51,4 @@ export function timeUntil(iso: string): string | null {
   const h = Math.floor(diff / 3_600_000)
   const m = Math.floor((diff % 3_600_000) / 60_000)
   return h > 0 ? `${h}h ${m}m` : `${m}m`
-}
-
-// Session helpers (localStorage)
-const SESSIONS_KEY = 'wcp_sessions'
-
-export function getSessions(): SessionsMap {
-  if (typeof window === 'undefined') return {}
-  try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) ?? '{}') } catch { return {} }
-}
-
-export function getSession(inviteCode: string): Session | null {
-  return getSessions()[inviteCode.toUpperCase()] ?? null
-}
-
-export function saveSession(inviteCode: string, session: Session): void {
-  const all = getSessions()
-  all[inviteCode.toUpperCase()] = session
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(all))
-}
-
-export function removeSession(inviteCode: string): void {
-  const all = getSessions()
-  delete all[inviteCode.toUpperCase()]
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(all))
 }

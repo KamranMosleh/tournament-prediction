@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    const verified = await getVerifiedPlayer(req, supabase, { playerId: player_id, leagueId: league_id })
+    const verified = await getVerifiedPlayer(supabase, { playerId: player_id, leagueId: league_id })
     if (!verified) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

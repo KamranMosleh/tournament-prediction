@@ -9,9 +9,9 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const { match_id, home_score, away_score } = await req.json()
+    const { match_id, league_id, home_score, away_score } = await req.json()
 
-    if (!match_id || home_score === undefined || away_score === undefined) {
+    if (!match_id || !league_id || home_score === undefined || away_score === undefined) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
     if (home_score < 0 || away_score < 0 || home_score > 30 || away_score > 30) {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Match has not started yet' }, { status: 409 })
     }
 
-    const verified = await getVerifiedPlayer(req, supabase, { requireAdmin: true })
+    const verified = await getVerifiedPlayer(supabase, { leagueId: league_id, requireAdmin: true })
     if (!verified) {
       return NextResponse.json({ error: 'Forbidden - admins only' }, { status: 403 })
     }

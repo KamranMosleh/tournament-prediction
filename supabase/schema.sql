@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS players (
   league_id         UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
   user_id           UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   display_name      TEXT NOT NULL CHECK (char_length(display_name) BETWEEN 2 AND 20),
+  -- Compatibility only. Application identity is exclusively auth.users.
   session_token     UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
   is_admin          BOOLEAN NOT NULL DEFAULT FALSE,
   joined_at         TIMESTAMPTZ DEFAULT NOW(),
@@ -287,7 +288,7 @@ ALTER TABLE match_predictions      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tournament_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sync_log               ENABLE ROW LEVEL SECURITY;
 
--- Public reads
+-- Account profiles remain self-managed.
 DO $$ BEGIN
   CREATE POLICY "profiles_self_read" ON profiles FOR SELECT USING (auth.uid() = id);
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -303,110 +304,66 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
-DO $$ BEGIN
-  CREATE POLICY "leagues_read"  ON leagues  FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "matches_read"  ON matches  FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "players_read"  ON players  FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "preds_read"    ON match_predictions      FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "tourney_read"  ON tournament_predictions FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "sync_read"     ON sync_log FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
--- Writes (service role key enforces auth in API routes)
-DO $$ BEGIN
-  CREATE POLICY "leagues_write" ON leagues  FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "players_write" ON players  FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "players_update" ON players FOR UPDATE USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "preds_insert"  ON match_predictions FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "preds_update"  ON match_predictions FOR UPDATE USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "tourney_insert" ON tournament_predictions FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "tourney_update" ON tournament_predictions FOR UPDATE USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "matches_insert" ON matches FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "matches_update" ON matches FOR UPDATE USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "sync_insert"   ON sync_log FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
 ALTER TABLE matchday_summaries ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  CREATE POLICY "summaries_read"   ON matchday_summaries FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "summaries_insert" ON matchday_summaries FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
 ALTER TABLE match_recaps ENABLE ROW LEVEL SECURITY;
 
-DO $$ BEGIN
-  CREATE POLICY "recaps_read"   ON match_recaps FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+-- Gameplay data is readable only after Supabase Auth. All writes go through
+-- server API routes using the service role client.
+DROP POLICY IF EXISTS "leagues_read" ON leagues;
+DROP POLICY IF EXISTS "matches_read" ON matches;
+DROP POLICY IF EXISTS "players_read" ON players;
+DROP POLICY IF EXISTS "preds_read" ON match_predictions;
+DROP POLICY IF EXISTS "tourney_read" ON tournament_predictions;
+DROP POLICY IF EXISTS "sync_read" ON sync_log;
+DROP POLICY IF EXISTS "summaries_read" ON matchday_summaries;
+DROP POLICY IF EXISTS "recaps_read" ON match_recaps;
 
-DO $$ BEGIN
-  CREATE POLICY "recaps_insert" ON match_recaps FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+CREATE POLICY "leagues_read" ON leagues
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "matches_read" ON matches
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "players_read" ON players
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "preds_read" ON match_predictions
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "tourney_read" ON tournament_predictions
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "sync_read" ON sync_log
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "summaries_read" ON matchday_summaries
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "recaps_read" ON match_recaps
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "leagues_write" ON leagues;
+DROP POLICY IF EXISTS "players_write" ON players;
+DROP POLICY IF EXISTS "players_update" ON players;
+DROP POLICY IF EXISTS "preds_insert" ON match_predictions;
+DROP POLICY IF EXISTS "preds_update" ON match_predictions;
+DROP POLICY IF EXISTS "tourney_insert" ON tournament_predictions;
+DROP POLICY IF EXISTS "tourney_update" ON tournament_predictions;
+DROP POLICY IF EXISTS "matches_insert" ON matches;
+DROP POLICY IF EXISTS "matches_update" ON matches;
+DROP POLICY IF EXISTS "sync_insert" ON sync_log;
+DROP POLICY IF EXISTS "summaries_insert" ON matchday_summaries;
+DROP POLICY IF EXISTS "recaps_insert" ON match_recaps;
+
+REVOKE ALL ON leagues, players, matches, match_predictions,
+  tournament_predictions, matchday_summaries, match_recaps, sync_log
+  FROM anon;
+
+REVOKE INSERT, UPDATE, DELETE ON leagues, players, matches, match_predictions,
+  tournament_predictions, matchday_summaries, match_recaps, sync_log
+  FROM authenticated;
+
+GRANT SELECT ON leagues, matches, match_predictions, tournament_predictions,
+  matchday_summaries, match_recaps, sync_log
+  TO authenticated;
+
+REVOKE SELECT ON players FROM authenticated;
+GRANT SELECT (
+  id, league_id, display_name, is_admin, joined_at, joined_match_day
+) ON players TO authenticated;
 
 -- ============================================================
 -- CRON: lock matches at kick-off (runs every minute)
@@ -436,11 +393,6 @@ END $$;
 
 DO $$ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE matches;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE players;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 

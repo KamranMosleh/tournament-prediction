@@ -5,7 +5,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Archive, Loader2, RotateCcw, Settings, Trash2, X } from 'lucide-react'
 import type { League } from '@/types'
-import { removeSession } from '@/lib/utils'
 
 type Props = {
   league: League
@@ -56,7 +55,6 @@ export function LeagueLifecycleDialog({ league }: Props) {
         setError(data.error ?? 'Failed to permanently delete league')
         return
       }
-      removeSession(league.invite_code)
       setOpen(false)
       router.replace('/')
       router.refresh()

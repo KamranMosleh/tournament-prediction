@@ -26,7 +26,6 @@ interface Props {
   players: Player[]
   playerId: string
   leagueId: string
-  sessionToken: string
   pickDeadlines: PickDeadlines
   winnerLocked: boolean
   topScorerLocked: boolean
@@ -43,7 +42,6 @@ export function TournamentPredictionsForm({
   players,
   playerId,
   leagueId,
-  sessionToken,
   pickDeadlines,
   winnerLocked,
   topScorerLocked,
@@ -67,7 +65,7 @@ export function TournamentPredictionsForm({
     try {
       const res = await fetch('/api/tournament-predictions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ player_id: playerId, league_id: leagueId, winner_team: winner }),
       })
       setWinnerSaveState(res.ok ? 'saved' : 'error')
@@ -83,7 +81,7 @@ export function TournamentPredictionsForm({
     try {
       const res = await fetch('/api/tournament-predictions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ player_id: playerId, league_id: leagueId, top_scorer_name: scorer }),
       })
       setScorerSaveState(res.ok ? 'saved' : 'error')

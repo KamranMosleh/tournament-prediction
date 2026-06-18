@@ -7,10 +7,10 @@ import { formatKickoff } from '@/lib/utils'
 
 interface Props {
   matches: Match[]
-  sessionToken: string
+  leagueId: string
 }
 
-export function ResultsForm({ matches, sessionToken }: Props) {
+export function ResultsForm({ matches, leagueId }: Props) {
   const pending = matches.filter(m => m.status === 'locked' || (m.status === 'finished' && m.home_score !== null))
   const locked = matches.filter(m => m.status === 'locked')
 
@@ -31,7 +31,7 @@ export function ResultsForm({ matches, sessionToken }: Props) {
       </div>
 
       {locked.map(match => (
-        <ResultRow key={match.id} match={match} sessionToken={sessionToken} />
+        <ResultRow key={match.id} match={match} leagueId={leagueId} />
       ))}
 
       {pending.filter(m => m.status === 'finished').length > 0 && (
@@ -40,7 +40,7 @@ export function ResultsForm({ matches, sessionToken }: Props) {
             Already entered (click to correct)
           </h4>
           {pending.filter(m => m.status === 'finished').map(match => (
-            <ResultRow key={match.id} match={match} sessionToken={sessionToken} />
+            <ResultRow key={match.id} match={match} leagueId={leagueId} />
           ))}
         </>
       )}
@@ -48,7 +48,7 @@ export function ResultsForm({ matches, sessionToken }: Props) {
   )
 }
 
-function ResultRow({ match, sessionToken }: { match: Match; sessionToken: string }) {
+function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
   const [home, setHome] = useState(match.home_score?.toString() ?? '')
   const [away, setAway] = useState(match.away_score?.toString() ?? '')
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -60,8 +60,8 @@ function ResultRow({ match, sessionToken }: { match: Match; sessionToken: string
     try {
       const res = await fetch('/api/results', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
-        body: JSON.stringify({ match_id: match.id, home_score: Number(home), away_score: Number(away) }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: match.id, league_id: leagueId, home_score: Number(home), away_score: Number(away) }),
       })
       setState(res.ok ? 'saved' : 'error')
       if (res.ok) setTimeout(() => setState('idle'), 3000)

@@ -26,7 +26,6 @@ export interface Player {
   league_id: string
   user_id: string | null
   display_name: string
-  session_token: string
   is_admin: boolean
   joined_at: string
   joined_match_day: number | null
@@ -140,14 +139,10 @@ export interface MatchWithPrediction extends Match {
 
 export interface Session {
   player_id: string
-  user_id?: string | null
-  session_token: string
+  user_id: string
   display_name: string
   league_id: string
   league_name: string
   invite_code: string
   is_admin: boolean
 }
-
-// Shape stored in localStorage
-export type SessionsMap = Record<string, Session>

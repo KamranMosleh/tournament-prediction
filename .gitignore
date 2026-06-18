@@ -26,6 +26,8 @@
 /docs/*
 !/docs/SUPABASE_VERCEL_SYNC_SETUP.md
 !/docs/LEAGUE_LIFECYCLE.md
+!/docs/APP_WORKFLOW_AND_ARCHITECTURE.md
+!/docs/ACCOUNT_FIRST_PRIVACY.md
 
 # debug
 npm-debug.log*

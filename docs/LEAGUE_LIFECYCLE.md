@@ -1,9 +1,11 @@
 # League Archive and Delete
 
-League lifecycle actions are account-owner controls. An admin player or legacy browser session is not enough.
+League lifecycle actions are account-owner controls. Authentication is required before league access, and an admin role alone is not enough.
 
 ## Behavior
 
+- Active and archived leagues are listed separately on the signed-in home dashboard.
+- Signed-out visitors cannot see create/join controls or league lists.
 - **Archive** keeps standings and history visible but blocks new members and all writes.
 - **Restore** re-enables joins, predictions, picks, manual results, imports, sync, and AI generation.
 - **Delete** permanently removes the league and its players, predictions, tournament picks, summaries, and recaps.
@@ -154,4 +156,4 @@ Content-Type: application/json
 {"confirm_invite_code":"ABC123"}
 ```
 
-These endpoints require the authenticated Supabase session cookie and never accept `x-session-token` as owner proof.
+These endpoints require the authenticated Supabase session cookie. Browser session tokens are not part of the application identity model.

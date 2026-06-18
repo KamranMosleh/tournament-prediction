@@ -9,11 +9,8 @@ import {
 
 function isAuthorized(req: NextRequest): boolean {
   const syncSecret = process.env.SYNC_SECRET
-  const cronSecret = process.env.CRON_SECRET
-  const auth = req.headers.get('authorization') ?? ''
   const xSecret = req.headers.get('x-sync-secret') ?? ''
-  if (!syncSecret && !cronSecret) return true
-  if (cronSecret && auth === `Bearer ${cronSecret}`) return true
+  if (!syncSecret && process.env.NODE_ENV !== 'production') return true
   if (syncSecret && xSecret === syncSecret) return true
   return false
 }

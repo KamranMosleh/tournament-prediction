@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Archive, BarChart2, Calendar, Trophy, Shield, Send, Home, Eye } from 'lucide-react'
 import type {
   League, Player, Match, MatchPrediction, TournamentPrediction,
-  MatchdaySummary, MatchRecap, Session, MatchWithPrediction
+  MatchdaySummary, MatchRecap, MatchWithPrediction
 } from '@/types'
-import { getSession, saveSession } from '@/lib/utils'
 import { computeLeaderboard, sortLeaderboard } from '@/lib/scoring'
 import { InviteCode } from '@/components/ui/InviteCode'
 import { Leaderboard } from '@/components/leaderboard/Leaderboard'
@@ -24,6 +23,7 @@ type Tab = 'leaderboard' | 'matches' | 'reveal' | 'picks' | 'results'
 
 interface Props {
   league: League
+  currentPlayer: Player | null
   players: Player[]
   matches: Match[]
   predictions: MatchPrediction[]
@@ -34,6 +34,7 @@ interface Props {
 
 export function LeagueHub({
   league,
+  currentPlayer,
   players: initialPlayers,
   matches: initialMatches,
   predictions: initialPredictions,
@@ -43,9 +44,6 @@ export function LeagueHub({
 }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('leaderboard')
-
-  // Session — undefined = still loading, null = not joined
-  const [session, setSession] = useState<Session | null | undefined>(undefined)
 
   // Live data
   const [players, setPlayers] = useState(initialPlayers)
@@ -68,50 +66,7 @@ export function LeagueHub({
   const playerIdsRef = useRef(initialPlayers.map(p => p.id))
   useEffect(() => { playerIdsRef.current = players.map(p => p.id) }, [players])
 
-  // Prefer account-backed membership, then fall back to legacy localStorage sessions.
-  useEffect(() => {
-    let mounted = true
-
-    const loadSession = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (user) {
-        const { data: player } = await supabase
-          .from('players')
-          .select('*')
-          .eq('league_id', league.id)
-          .eq('user_id', user.id)
-          .maybeSingle()
-
-        if (!mounted) return
-
-        if (player) {
-          const accountSession: Session = {
-            player_id: player.id,
-            user_id: player.user_id,
-            session_token: player.session_token,
-            display_name: player.display_name,
-            league_id: league.id,
-            league_name: league.name,
-            invite_code: league.invite_code,
-            is_admin: player.is_admin,
-          }
-          saveSession(league.invite_code, accountSession)
-          setSession(accountSession)
-          return
-        }
-      }
-
-      if (!mounted) return
-      setSession(getSession(league.invite_code) ?? null)
-    }
-
-    loadSession()
-    return () => { mounted = false }
-  }, [league.id, league.invite_code, league.name])
-
-  // Supabase Realtime — subscribe once, use ref for player IDs
+  // Subscribe only to gameplay tables, never private player rows.
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase.channel(`league-${league.id}`)
@@ -124,11 +79,6 @@ export function LeagueHub({
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, payload => {
         setMatches(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m))
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'players' }, payload => {
-        if (payload.new.league_id === league.id) {
-          setPlayers(prev => [...prev, payload.new as Player])
-        }
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -155,24 +105,14 @@ export function LeagueHub({
     return map
   }, [matches, players, predictionsByMatch, league.scoring_mode])
 
-  // Loading state
-  if (session === undefined) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 animate-spin"
-          style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
-      </div>
-    )
-  }
-
   // Not joined
-  if (session === null) {
+  if (!currentPlayer) {
     return <NotJoined code={league.invite_code} leagueName={league.name} archived={Boolean(league.archived_at)} router={router} />
   }
 
   // Computed values
   const isArchived = Boolean(league.archived_at)
-  const isOwner = Boolean(session.user_id && session.user_id === league.created_by_user_id)
+  const isOwner = currentPlayer.user_id === league.created_by_user_id
   const scores = sortLeaderboard(computeLeaderboard({
     players, predictions, matches, tournamentPredictions,
     scoringMode: league.scoring_mode,
@@ -180,10 +120,10 @@ export function LeagueHub({
 
   const matchesWithPredictions: MatchWithPrediction[] = matches.map(m => ({
     ...m,
-    prediction: predictions.find(p => p.player_id === session.player_id && p.match_id === m.id) ?? null,
+    prediction: predictions.find(p => p.player_id === currentPlayer.id && p.match_id === m.id) ?? null,
   }))
 
-  const myTournamentPick = tournamentPredictions.find(p => p.player_id === session.player_id) ?? null
+  const myTournamentPick = tournamentPredictions.find(p => p.player_id === currentPlayer.id) ?? null
   const latestSummary = summaries.length > 0 ? summaries[summaries.length - 1] : null
   const deadlines = getPickDeadlines(matches)
   const winnerLocked = isDeadlinePassed(deadlines.finalKickoff)
@@ -197,10 +137,7 @@ export function LeagueHub({
     try {
       const res = await fetch('/api/sync', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-token': session.session_token,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           league_id: league.id,
           tournament_code: league.tournament_code,
@@ -229,7 +166,7 @@ export function LeagueHub({
     { id: 'matches',     label: 'Matches',   icon: <Calendar size={13} /> },
     { id: 'reveal',      label: 'Reveal',    icon: <Eye size={13} /> },
     { id: 'picks',       label: 'My Picks',  icon: <Trophy size={13} /> },
-    ...(session.is_admin && !isArchived && league.sync_source === 'manual'
+    ...(currentPlayer.is_admin && !isArchived && league.sync_source === 'manual'
       ? [{ id: 'results' as Tab, label: 'Results', icon: <Shield size={13} /> }]
       : []),
   ]
@@ -305,17 +242,16 @@ export function LeagueHub({
         {tab === 'leaderboard' && (
           <div className="flex flex-col gap-4">
             {latestSummary && <PunditsCard summary={latestSummary} />}
-            <Leaderboard scores={scores} currentPlayerId={session.player_id} />
+            <Leaderboard scores={scores} currentPlayerId={currentPlayer.id} />
           </div>
         )}
         {tab === 'matches' && (
           <MatchList
             matches={matchesWithPredictions}
-            playerId={session.player_id}
-            sessionToken={session.session_token}
+            playerId={currentPlayer.id}
             recaps={recaps}
             reveals={revealMap}
-            isAdmin={session.is_admin}
+            isAdmin={currentPlayer.is_admin}
             canImportFixtures={!isArchived && league.sync_source === 'api'}
             onImportFixtures={handleImportFixtures}
             syncState={syncState}
@@ -336,9 +272,8 @@ export function LeagueHub({
             existing={myTournamentPick}
             allPredictions={tournamentPredictions}
             players={players}
-            playerId={session.player_id}
+            playerId={currentPlayer.id}
             leagueId={league.id}
-            sessionToken={session.session_token}
             pickDeadlines={deadlines}
             winnerLocked={winnerLocked}
             topScorerLocked={topScorerLocked}
@@ -347,8 +282,8 @@ export function LeagueHub({
             readOnly={isArchived}
           />
         )}
-        {tab === 'results' && session.is_admin && (
-          <ResultsForm matches={matches} sessionToken={session.session_token} />
+        {tab === 'results' && currentPlayer.is_admin && (
+          <ResultsForm matches={matches} leagueId={league.id} />
         )}
       </div>
     </div>

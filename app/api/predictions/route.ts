@@ -15,14 +15,14 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    const verified = await getVerifiedPlayer(req, supabase, { playerId: player_id })
+    const verified = await getVerifiedPlayer(supabase, { playerId: player_id })
     if (!verified) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { data: league } = await supabase
       .from('leagues')
-      .select('archived_at')
+      .select('archived_at, tournament_code, tournament_season')
       .eq('id', verified.player.league_id)
       .single()
 
@@ -33,11 +33,18 @@ export async function POST(req: NextRequest) {
     // Check match is still open
     const { data: match } = await supabase
       .from('matches')
-      .select('status')
+      .select('status, tournament_code, tournament_season')
       .eq('id', match_id)
       .single()
 
     if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+    if (
+      !league ||
+      match.tournament_code !== league.tournament_code ||
+      match.tournament_season !== league.tournament_season
+    ) {
+      return NextResponse.json({ error: 'Match is outside this league tournament' }, { status: 403 })
+    }
     if (match.status !== 'open') {
       return NextResponse.json({ error: 'Predictions are locked for this match' }, { status: 409 })
     }

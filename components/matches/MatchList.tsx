@@ -5,7 +5,6 @@ import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage } fro
 interface Props {
   matches: MatchWithPrediction[]
   playerId: string
-  sessionToken: string
   recaps?: MatchRecap[]
   reveals?: Map<string, MatchRevealData>
   isAdmin?: boolean
@@ -19,7 +18,6 @@ interface Props {
 export function MatchList({
   matches,
   playerId,
-  sessionToken,
   recaps = [],
   reveals = new Map<string, MatchRevealData>(),
   isAdmin = false,
@@ -92,13 +90,13 @@ export function MatchList({
 
           {/* Group sub-sections */}
           {stage === 'group'
-            ? <GroupStageSection matches={stageMatches} playerId={playerId} sessionToken={sessionToken} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} />
+            ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} />
             : (
               <div className="flex flex-col gap-3">
                 {stageMatches
                   .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                   .map(m => (
-                    <MatchCard key={m.id} match={m} playerId={playerId} sessionToken={sessionToken} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} />
+                    <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} />
                   ))}
               </div>
             )
@@ -112,7 +110,6 @@ export function MatchList({
 function GroupStageSection({
   matches,
   playerId,
-  sessionToken,
   recapMap,
   revealMap,
   readOnly = false,
@@ -142,7 +139,6 @@ function GroupStageSection({
                   key={m.id}
                   match={m}
                   playerId={playerId}
-                  sessionToken={sessionToken}
                   recap={recapMap.get(m.id)}
                   reveal={revealMap.get(m.id)}
                   readOnly={readOnly}

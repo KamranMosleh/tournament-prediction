@@ -1,18 +1,37 @@
 # Supabase and Vercel Sync Setup
 
-This app should stay on Vercel Hobby for hosting, while Supabase handles the frequent production scheduler.
+This app stays on Vercel Hobby for hosting, while Supabase handles production scheduling.
 
 ## Why Vercel Cron Was Removed
 
-Vercel Hobby accounts limit cron schedules to daily intervals. The app needs match data refreshed every 5 minutes, so a Vercel cron like `*/5 * * * *` blocks Hobby deployment.
+The original `vercel.json` requested `/api/sync` every 5 minutes with:
 
-The new flow is:
+```text
+*/5 * * * *
+```
+
+Vercel Hobby only supports cron jobs that run once per day. A 5-minute schedule therefore caused Vercel to reject the deployment and ask for a Pro upgrade.
+
+Removing `CRON_SECRET` or `SYNC_SECRET` would not solve that deployment error because Vercel reads the schedule from `vercel.json`, independently of environment variables. Removing both secrets would also weaken `/api/sync` authorization.
+
+The solution is to keep the Next.js app on Vercel Hobby, remove Vercel Cron, and use Supabase `pg_cron` + `pg_net` for scheduling.
+
+## Sync Policy
+
+The production policy is intentionally conservative for football-data.org free usage:
+
+- A baseline sync runs once per day.
+- A match-window check runs every 10 minutes.
+- The match-window check calls football-data.org only when an unfinished match is between 30 minutes before kickoff and 6 hours after kickoff.
+- Outside that window, the Edge Function returns `No active match windows` without calling football-data.org.
+
+The flow is:
 
 ```text
 Supabase pg_cron -> Supabase Edge Function -> Vercel /api/sync -> football-data.org + Supabase tables
 ```
 
-`/api/sync` remains the real worker. Supabase only triggers it.
+The free football-data.org plan currently permits 10 calls per minute, but its scores are delayed. This policy stays comfortably below the rate limit without pretending to provide true live scores.
 
 ## Required Vercel Settings
 
@@ -22,93 +41,227 @@ Set these environment variables in the Vercel project:
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser/client Supabase URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser/client Supabase key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-side Supabase writes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase key that bypasses RLS |
 | `FOOTBALL_DATA_API_KEY` | football-data.org match sync |
 | `GROQ_API_KEY` | AI insights and recaps |
 | `SYNC_SECRET` | Shared secret for scheduled and manual sync calls |
 
-`CRON_SECRET` is no longer required for this setup. Remove it from Vercel if it was only used for Vercel Cron.
+`CRON_SECRET` is not required. The repository has no Vercel cron configuration, so Vercel Hobby can deploy the app normally.
 
-After removing `vercel.json`, redeploy the app. The Hobby cron-limit warning should disappear.
+## Supabase Edge Function
 
-## Required Supabase Edge Function Secrets
+Create or update an Edge Function named exactly:
 
-Use the same `SYNC_SECRET` value in Vercel and Supabase.
-
-```bash
-supabase login
-supabase link --project-ref <project-ref>
-supabase secrets set SYNC_SECRET="<same-value-as-vercel>"
-supabase secrets set APP_URL="https://<your-vercel-app-domain>"
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY="<your-service-role-key>"
-supabase functions deploy sync-matches
+```text
+sync-matches
 ```
 
-`APP_URL` must be the production Vercel app URL, without a trailing slash.
+Use the code from `supabase/functions/sync-matches/index.ts`.
+
+Under `Edge Functions -> Secrets`, set:
+
+```text
+APP_URL=https://<your-vercel-app-domain>
+SYNC_SECRET=<same-value-as-vercel>
+```
+
+`APP_URL` must not have a trailing slash. Supabase automatically supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to hosted Edge Functions.
+
+Under the `sync-matches` function settings:
+
+1. Turn off **Verify JWT with legacy secret**.
+2. Save the setting.
+
+The function performs its own authorization by requiring the `x-sync-secret` header.
 
 ## Supabase Scheduler SQL
 
-Run this in the Supabase SQL editor.
+Open `Supabase Dashboard -> SQL Editor -> New query`.
+
+### 1. Enable extensions and store scheduler secrets
+
+Run this after replacing `<same-sync-secret-as-vercel>`. It can safely create the Vault secrets or update them if they already exist:
 
 ```sql
-create extension if not exists vault with schema vault;
 create extension if not exists pg_cron;
-create extension if not exists pg_net;
+create extension if not exists pg_net with schema extensions;
+create extension if not exists supabase_vault cascade;
 
-select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
-select vault.create_secret('<supabase-anon-or-publishable-key>', 'publishable_key');
-select vault.create_secret('<same-sync-secret-as-vercel>', 'sync_secret');
+do $$
+declare
+  project_url_id uuid;
+  sync_secret_id uuid;
+begin
+  select id
+  into project_url_id
+  from vault.decrypted_secrets
+  where name = 'project_url'
+  limit 1;
+
+  if project_url_id is null then
+    perform vault.create_secret(
+      'https://hizjqmgfxioaspgvqzql.supabase.co',
+      'project_url'
+    );
+  else
+    perform vault.update_secret(
+      project_url_id,
+      'https://hizjqmgfxioaspgvqzql.supabase.co',
+      'project_url'
+    );
+  end if;
+
+  select id
+  into sync_secret_id
+  from vault.decrypted_secrets
+  where name = 'sync_secret'
+  limit 1;
+
+  if sync_secret_id is null then
+    perform vault.create_secret(
+      '<same-sync-secret-as-vercel>',
+      'sync_secret'
+    );
+  else
+    perform vault.update_secret(
+      sync_secret_id,
+      '<same-sync-secret-as-vercel>',
+      'sync_secret'
+    );
+  end if;
+end $$;
 ```
 
-Then schedule the Edge Function every 5 minutes.
+These Vault values are separate from Edge Function Secrets. Do not store the service-role key in Vault for this scheduler.
+
+### 2. Remove old schedules and create the new policy
+
+Run:
 
 ```sql
 do $$
+declare
+  scheduled_job record;
 begin
-  perform cron.unschedule('sync-matches-every-5-min');
-exception when others then null;
+  for scheduled_job in
+    select jobid
+    from cron.job
+    where jobname in (
+      'sync-matches-every-5-min',
+      'sync-matches-daily',
+      'sync-matches-match-window'
+    )
+  loop
+    perform cron.unschedule(scheduled_job.jobid);
+  end loop;
 end $$;
 
 select cron.schedule(
-  'sync-matches-every-5-min',
-  '*/5 * * * *',
+  'sync-matches-daily',
+  '17 4 * * *',
   $$
   select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url') || '/functions/v1/sync-matches',
+    url := (
+      select decrypted_secret
+      from vault.decrypted_secrets
+      where name = 'project_url'
+      limit 1
+    ) || '/functions/v1/sync-matches',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'publishable_key'),
-      'x-sync-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'sync_secret')
+      'x-sync-secret', (
+        select decrypted_secret
+        from vault.decrypted_secrets
+        where name = 'sync_secret'
+        limit 1
+      )
     ),
-    body := '{}'::jsonb
+    body := '{"mode":"daily"}'::jsonb,
+    timeout_milliseconds := 120000
+  ) as request_id;
+  $$
+);
+
+select cron.schedule(
+  'sync-matches-match-window',
+  '*/10 * * * *',
+  $$
+  select net.http_post(
+    url := (
+      select decrypted_secret
+      from vault.decrypted_secrets
+      where name = 'project_url'
+      limit 1
+    ) || '/functions/v1/sync-matches',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-sync-secret', (
+        select decrypted_secret
+        from vault.decrypted_secrets
+        where name = 'sync_secret'
+        limit 1
+      )
+    ),
+    body := '{"mode":"match-window"}'::jsonb,
+    timeout_milliseconds := 120000
   ) as request_id;
   $$
 );
 ```
 
+The daily job runs at `04:17 UTC`. The second job checks for active match windows every 10 minutes.
+
 ## Manual Verification
 
-Call the Edge Function directly:
+Test a daily sync:
 
 ```bash
 curl -i -X POST "https://<project-ref>.supabase.co/functions/v1/sync-matches" \
-  -H "Authorization: Bearer <supabase-anon-or-publishable-key>" \
   -H "x-sync-secret: <sync-secret>" \
   -H "Content-Type: application/json" \
-  -d '{}'
+  -d '{"mode":"daily"}'
 ```
 
-Expected result: a JSON response with `results`, or `No api-sync leagues` if no leagues currently use API sync.
+Test the match-window guard:
 
-Check that the scheduler exists:
+```bash
+curl -i -X POST "https://<project-ref>.supabase.co/functions/v1/sync-matches" \
+  -H "x-sync-secret: <sync-secret>" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"match-window"}'
+```
+
+Outside a match window, expect:
+
+```json
+{
+  "ok": true,
+  "mode": "match-window",
+  "message": "No active match windows"
+}
+```
+
+## Monitoring
+
+Confirm both jobs exist:
 
 ```sql
 select jobname, schedule, active
 from cron.job
-where jobname = 'sync-matches-every-5-min';
+where jobname in ('sync-matches-daily', 'sync-matches-match-window')
+order by jobname;
 ```
 
-Check recent sync work:
+Check recent scheduler HTTP responses:
+
+```sql
+select status_code, timed_out, error_msg, content, created
+from net._http_response
+order by created desc
+limit 20;
+```
+
+Check successful application syncs:
 
 ```sql
 select *
@@ -117,30 +270,19 @@ order by synced_at desc
 limit 10;
 ```
 
-Check Supabase HTTP scheduler responses:
-
-```sql
-select *
-from net._http_response
-order by created desc
-limit 10;
-```
-
 ## Security Notes
 
 - Keep `SYNC_SECRET` long and random.
-- Do not remove `SYNC_SECRET` from Vercel. Without it, `/api/sync` can fall back to local/dev-open behavior if no other sync secret is configured.
-- The Edge Function requires `x-sync-secret` to match its Supabase `SYNC_SECRET` before it calls Vercel.
-- The Supabase scheduler also sends the publishable key in `Authorization` so the Edge Function passes Supabase's default JWT check.
-
-## Expected Free-Tier Usage
-
-Every 5 minutes is about 8,640 scheduler calls per 30-day month. That is small for the Supabase free-tier Edge Function invocation allowance, and it avoids Vercel Hobby's daily cron restriction.
+- Use the same value in Vercel, Supabase Edge Function Secrets, and Supabase Vault.
+- Never expose `SUPABASE_SERVICE_ROLE_KEY` to browser code or prefix it with `NEXT_PUBLIC_`.
+- Keep **Verify JWT with legacy secret** off for this function because authorization is handled by `x-sync-secret`.
 
 ## Official References
 
+- [football-data.org pricing](https://www.football-data.org/pricing)
+- [football-data.org request throttling](https://www.football-data.org/documentation/api)
 - [Vercel Cron Jobs usage and pricing](https://vercel.com/docs/cron-jobs/usage-and-pricing)
 - [Supabase scheduled Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions)
-- [Supabase Edge Function invocation usage](https://supabase.com/docs/guides/platform/manage-your-usage/edge-function-invocations)
+- [Supabase Edge Function secrets](https://supabase.com/docs/guides/functions/secrets)
 - [Supabase pg_net](https://supabase.com/docs/guides/database/extensions/pg_net)
 - [Supabase Vault](https://supabase.com/docs/guides/database/vault)

@@ -45,6 +45,20 @@ See [Account-First Privacy](docs/ACCOUNT_FIRST_PRIVACY.md) for the exact dashboa
 
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code or prefix it with `NEXT_PUBLIC_`.
 
+## Authentication Email Delivery
+
+Supabase's built-in email sender is intended only for initial testing. It has a very low project-wide limit, so multiple account confirmations or password resets can produce an `email rate limit exceeded` error.
+
+Before inviting players:
+
+1. In Supabase, open **Authentication > Emails > SMTP Settings**.
+2. Enable custom SMTP using a transactional email provider such as Resend, Postmark, SendGrid, or Brevo.
+3. In **Authentication > Rate Limits**, set an email limit appropriate for the league.
+4. In **Authentication > URL Configuration**, confirm the production site URL and redirect URLs are allowed.
+5. Test signup and password reset with an address that is not a member of the Supabase organization.
+
+Keep email confirmation enabled. Disabling it avoids confirmation emails but allows accounts to be created for email addresses the person does not control.
+
 ## Identity And Privacy
 
 - Supabase Auth cookies are the only player identity mechanism.

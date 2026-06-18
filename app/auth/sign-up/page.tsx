@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import { Loader2, UserPlus } from 'lucide-react'
+import { getAuthEmailErrorMessage } from '@/lib/auth-error'
 import { safeNextPath, withNext } from '@/lib/auth-redirect'
 import { createClient } from '@/lib/supabase/client'
 
@@ -33,7 +34,7 @@ function SignUpForm() {
     })
     setLoading(false)
 
-    if (signUpError) return setError(signUpError.message)
+    if (signUpError) return setError(getAuthEmailErrorMessage(signUpError, 'sign-up'))
     if (data.session) {
       router.push(next)
       router.refresh()
@@ -46,8 +47,8 @@ function SignUpForm() {
     <AuthShell title="Create account" subtitle="Create one account for all your private leagues." next={next}>
       <Field label="Email" type="email" value={email} onChange={setEmail} />
       <Field label="Password" type="password" value={password} onChange={setPassword} onEnter={signUp} />
-      {error && <p className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}
-      {message && <p className="text-xs" style={{ color: 'var(--accent)' }}>{message}</p>}
+      {error && <p role="alert" className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}
+      {message && <p role="status" className="text-xs" style={{ color: 'var(--accent)' }}>{message}</p>}
       <button onClick={signUp} disabled={!email.trim() || password.length < 6 || loading} className="w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2" style={{ background: !email.trim() || password.length < 6 ? 'var(--surface-2)' : 'var(--accent)', color: !email.trim() || password.length < 6 ? 'var(--text-subtle)' : '#000' }}>
         {loading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
         {loading ? 'Creating...' : 'Create account'}

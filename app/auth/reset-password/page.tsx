@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Loader2, Mail } from 'lucide-react'
+import { getAuthEmailErrorMessage } from '@/lib/auth-error'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ResetPasswordPage() {
@@ -22,7 +23,7 @@ export default function ResetPasswordPage() {
     setLoading(false)
 
     if (resetError) {
-      setError(resetError.message)
+      setError(getAuthEmailErrorMessage(resetError, 'password-reset'))
       return
     }
 
@@ -48,8 +49,8 @@ export default function ResetPasswordPage() {
               style={{ background: 'var(--bg)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
             />
           </div>
-          {error && <p className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}
-          {message && <p className="text-xs" style={{ color: 'var(--accent)' }}>{message}</p>}
+          {error && <p role="alert" className="text-xs" style={{ color: 'var(--red)' }}>{error}</p>}
+          {message && <p role="status" className="text-xs" style={{ color: 'var(--accent)' }}>{message}</p>}
           <button
             onClick={sendReset}
             disabled={!email.trim() || loading}

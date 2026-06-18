@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarClock, Layers3 } from 'lucide-react'
+import { CalendarClock, Eye, EyeOff, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
 import { stageLabel, stageOrder } from '@/lib/utils'
 import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
@@ -34,6 +34,7 @@ export function MatchList({
   scoringMode = 'multiplied',
 }: Props) {
   const [sortByKickoff, setSortByKickoff] = useState(false)
+  const [showFinished, setShowFinished] = useState(false)
 
   if (matches.length === 0) {
     return (
@@ -72,10 +73,14 @@ export function MatchList({
 
   // Build match-id → recap lookup for O(1) access in render
   const recapMap = new Map(recaps.map(r => [r.match_id, r]))
+  const visibleMatches = showFinished
+    ? matches
+    : matches.filter(match => match.status !== 'finished')
+  const finishedCount = matches.filter(match => match.status === 'finished').length
 
   // Group by stage
   const grouped = new Map<MatchStage, MatchWithPrediction[]>()
-  for (const m of matches) {
+  for (const m of visibleMatches) {
     const arr = grouped.get(m.stage) ?? []
     arr.push(m)
     grouped.set(m.stage, arr)
@@ -84,13 +89,29 @@ export function MatchList({
   const sortedStages = [...grouped.entries()].sort(
     ([a], [b]) => stageOrder(a) - stageOrder(b)
   )
-  const chronologicalMatches = [...matches].sort(
+  const chronologicalMatches = [...visibleMatches].sort(
     (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
   )
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {finishedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowFinished(value => !value)}
+            aria-pressed={showFinished}
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
+            style={{
+              background: showFinished ? 'var(--surface)' : 'var(--accent-glow)',
+              border: `1px solid ${showFinished ? 'var(--border)' : 'rgba(63,185,80,0.35)'}`,
+              color: showFinished ? 'var(--text-muted)' : 'var(--accent)',
+            }}
+          >
+            {showFinished ? <EyeOff size={14} /> : <Eye size={14} />}
+            {showFinished ? 'Hide finished games' : `Show finished games (${finishedCount})`}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setSortByKickoff(value => !value)}
@@ -107,7 +128,23 @@ export function MatchList({
         </button>
       </div>
 
-      {sortByKickoff ? (
+      {visibleMatches.length === 0 ? (
+        <div
+          className="rounded-xl px-4 py-12 text-center"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+        >
+          <p className="font-medium" style={{ color: 'var(--text)' }}>No upcoming games</p>
+          <p className="text-sm mt-1">All available matches are finished.</p>
+          <button
+            type="button"
+            onClick={() => setShowFinished(true)}
+            className="mt-4 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold"
+            style={{ background: 'var(--accent)', color: '#000' }}
+          >
+            Show finished games
+          </button>
+        </div>
+      ) : sortByKickoff ? (
         <section>
           <h3
             className="text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-3"

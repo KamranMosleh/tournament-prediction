@@ -77,6 +77,7 @@ Match prediction scoring:
 - Wrong outcome: 0 points
 
 In multiplied mode, stage multipliers are group x1, round of 16 x2, quarter-final x3, semi-final x4, third place x4, and final x5.
+In flat mode, every stage remains 3/1/0 with no multiplier.
 
 Tournament picks use time-weighted bonuses:
 
@@ -85,6 +86,10 @@ Tournament picks use time-weighted bonuses:
 - Changing a saved pick moves that pick to the bonus tier active at the time of the change.
 - Winner picks lock at final kickoff. Top-scorer picks lock at semi-final kickoff.
 - Winner bonuses are awarded after the final is completed. Top-scorer bonuses are awarded after the lock deadline once a league admin records the official top scorer.
+- The champion is derived automatically from the completed final.
+- Team and player names are compared without case, accents, repeated spaces, hyphens, or apostrophes.
+
+Total points are match points plus tournament-pick bonuses. If total points are tied, the player with more exact-score predictions ranks first.
 
 Prediction visibility:
 

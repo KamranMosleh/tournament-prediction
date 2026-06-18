@@ -6,7 +6,13 @@ import {
   winnerPointsForSubmittedAt,
 } from '@/lib/tournament-picks'
 
-const STAGE_MULTIPLIERS: Record<MatchStage, number> = {
+export const BASE_MATCH_POINTS = {
+  exact: 3,
+  outcome: 1,
+  wrong: 0,
+} as const
+
+export const STAGE_MULTIPLIERS: Readonly<Record<MatchStage, number>> = {
   group: 1,
   round_of_16: 2,
   quarter_final: 3,
@@ -21,11 +27,11 @@ export function matchPoints(
   stage: MatchStage,
   mode: ScoringMode = 'multiplied'
 ): number {
-  let base = 0
+  let base: number = BASE_MATCH_POINTS.wrong
   if (predHome === realHome && predAway === realAway) {
-    base = 3
+    base = BASE_MATCH_POINTS.exact
   } else if (Math.sign(predHome - predAway) === Math.sign(realHome - realAway)) {
-    base = 1
+    base = BASE_MATCH_POINTS.outcome
   }
   return mode === 'multiplied' ? base * STAGE_MULTIPLIERS[stage] : base
 }
@@ -95,7 +101,9 @@ export function computeLeaderboard({
     let formMaxPoints = 0
 
     for (const match of finishedMatches) {
-      const maxPoints = scoringMode === 'multiplied' ? STAGE_MULTIPLIERS[match.stage] * 3 : 3
+      const maxPoints = scoringMode === 'multiplied'
+        ? STAGE_MULTIPLIERS[match.stage] * BASE_MATCH_POINTS.exact
+        : BASE_MATCH_POINTS.exact
       const isAfterJoin = player.joined_match_day == null ||
         match.match_day == null ||
         match.match_day >= player.joined_match_day

@@ -8,6 +8,29 @@ export interface PickDeadlines {
   finalKickoff: string | null
 }
 
+export const WINNER_BONUS_TIERS = [
+  { before: 'firstKickoff', label: 'Before first kick-off', points: 30 },
+  { before: 'roundOf16Kickoff', label: 'Before round of 16', points: 24 },
+  { before: 'quarterFinalKickoff', label: 'Before quarter-finals', points: 18 },
+  { before: 'semiFinalKickoff', label: 'Before semi-finals', points: 12 },
+  { before: 'finalKickoff', label: 'Before final', points: 6 },
+] as const satisfies ReadonlyArray<{
+  before: keyof PickDeadlines
+  label: string
+  points: number
+}>
+
+export const TOP_SCORER_BONUS_TIERS = [
+  { before: 'firstKickoff', label: 'Before first kick-off', points: 20 },
+  { before: 'roundOf16Kickoff', label: 'Before round of 16', points: 16 },
+  { before: 'quarterFinalKickoff', label: 'Before quarter-finals', points: 12 },
+  { before: 'semiFinalKickoff', label: 'Before semi-finals', points: 8 },
+] as const satisfies ReadonlyArray<{
+  before: keyof PickDeadlines
+  label: string
+  points: number
+}>
+
 function earliestKickoff(matches: Match[], stage: Match['stage']): string | null {
   const atStage = matches
     .filter(m => m.stage === stage)
@@ -39,11 +62,10 @@ export function winnerPointsForSubmittedAt(submittedAt: string | null | undefine
   if (!submittedAt) return 0
   const t = new Date(submittedAt).getTime()
 
-  if (deadlines.firstKickoff && t < new Date(deadlines.firstKickoff).getTime()) return 30
-  if (deadlines.roundOf16Kickoff && t < new Date(deadlines.roundOf16Kickoff).getTime()) return 24
-  if (deadlines.quarterFinalKickoff && t < new Date(deadlines.quarterFinalKickoff).getTime()) return 18
-  if (deadlines.semiFinalKickoff && t < new Date(deadlines.semiFinalKickoff).getTime()) return 12
-  if (deadlines.finalKickoff && t < new Date(deadlines.finalKickoff).getTime()) return 6
+  for (const tier of WINNER_BONUS_TIERS) {
+    const deadline = deadlines[tier.before]
+    if (deadline && t < new Date(deadline).getTime()) return tier.points
+  }
 
   return 0
 }
@@ -52,10 +74,10 @@ export function topScorerPointsForSubmittedAt(submittedAt: string | null | undef
   if (!submittedAt) return 0
   const t = new Date(submittedAt).getTime()
 
-  if (deadlines.firstKickoff && t < new Date(deadlines.firstKickoff).getTime()) return 20
-  if (deadlines.roundOf16Kickoff && t < new Date(deadlines.roundOf16Kickoff).getTime()) return 16
-  if (deadlines.quarterFinalKickoff && t < new Date(deadlines.quarterFinalKickoff).getTime()) return 12
-  if (deadlines.semiFinalKickoff && t < new Date(deadlines.semiFinalKickoff).getTime()) return 8
+  for (const tier of TOP_SCORER_BONUS_TIERS) {
+    const deadline = deadlines[tier.before]
+    if (deadline && t < new Date(deadline).getTime()) return tier.points
+  }
 
   return 0
 }

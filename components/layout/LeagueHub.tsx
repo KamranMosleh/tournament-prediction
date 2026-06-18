@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
 import { buildMatchRevealData } from '@/lib/prediction-reveal'
 import { LeagueLifecycleDialog } from '@/components/league/LeagueLifecycleDialog'
+import { ScoringRulesDialog } from '@/components/league/ScoringRulesDialog'
 
 type Tab = 'leaderboard' | 'matches' | 'reveal' | 'picks' | 'results'
 
@@ -179,8 +180,8 @@ export function LeagueHub({
         style={{ background: 'rgba(13,17,23,0.92)', borderBottom: '1px solid var(--border)' }}>
         <div className="max-w-2xl mx-auto px-4 pt-3 pb-0">
           {/* Top row */}
-          <div className="flex items-start justify-between gap-2 mb-2.5">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-2 mb-2.5">
+            <div className="flex flex-1 items-center gap-2 min-w-40">
               <button onClick={() => router.push('/')} title="All leagues"
                 className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 rounded-lg shrink-0 text-xs font-semibold transition-colors"
                 style={{
@@ -201,8 +202,9 @@ export function LeagueHub({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
               {isOwner && <LeagueLifecycleDialog league={league} />}
+              <ScoringRulesDialog scoringMode={league.scoring_mode} />
               {league.telegram_url && (
                 <a href={league.telegram_url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium"

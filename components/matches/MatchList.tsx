@@ -1,3 +1,7 @@
+'use client'
+
+import { useState } from 'react'
+import { CalendarClock, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
 import { stageLabel, stageOrder } from '@/lib/utils'
 import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
@@ -29,6 +33,8 @@ export function MatchList({
   readOnly = false,
   scoringMode = 'multiplied',
 }: Props) {
+  const [sortByKickoff, setSortByKickoff] = useState(false)
+
   if (matches.length === 0) {
     return (
       <div className="text-center py-16" style={{ color: 'var(--text-muted)' }}>
@@ -78,33 +84,81 @@ export function MatchList({
   const sortedStages = [...grouped.entries()].sort(
     ([a], [b]) => stageOrder(a) - stageOrder(b)
   )
+  const chronologicalMatches = [...matches].sort(
+    (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
+  )
 
   return (
-    <div className="flex flex-col gap-8">
-      {sortedStages.map(([stage, stageMatches]) => (
-        <section key={stage}>
-          <h3 className="text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-3"
-            style={{ color: 'var(--text-muted)' }}>
-            <span>{stageLabel(stage)}</span>
-            <span className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-            <span style={{ color: 'var(--text-subtle)' }}>{stageMatches.length} matches</span>
-          </h3>
+    <div className="flex flex-col gap-5">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setSortByKickoff(value => !value)}
+          aria-pressed={sortByKickoff}
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
+          style={{
+            background: sortByKickoff ? 'var(--accent-glow)' : 'var(--surface)',
+            border: `1px solid ${sortByKickoff ? 'rgba(63,185,80,0.35)' : 'var(--border)'}`,
+            color: sortByKickoff ? 'var(--accent)' : 'var(--text-muted)',
+          }}
+        >
+          {sortByKickoff ? <Layers3 size={14} /> : <CalendarClock size={14} />}
+          {sortByKickoff ? 'Group by stage' : 'Kick-off order'}
+        </button>
+      </div>
 
-          {/* Group sub-sections */}
-          {stage === 'group'
-            ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} />
-            : (
-              <div className="flex flex-col gap-3">
-                {stageMatches
-                  .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
-                  .map(m => (
-                    <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} scoringMode={scoringMode} />
-                  ))}
-              </div>
-            )
-          }
+      {sortByKickoff ? (
+        <section>
+          <h3
+            className="text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-3"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <span>All matches by kick-off</span>
+            <span className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+            <span style={{ color: 'var(--text-subtle)' }}>{chronologicalMatches.length} matches</span>
+          </h3>
+          <div className="flex flex-col gap-3">
+            {chronologicalMatches.map(match => (
+              <MatchCard
+                key={match.id}
+                match={match}
+                playerId={playerId}
+                recap={recapMap.get(match.id)}
+                reveal={reveals.get(match.id)}
+                readOnly={readOnly}
+                scoringMode={scoringMode}
+              />
+            ))}
+          </div>
         </section>
-      ))}
+      ) : (
+        <div className="flex flex-col gap-8">
+          {sortedStages.map(([stage, stageMatches]) => (
+            <section key={stage}>
+              <h3 className="text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-3"
+                style={{ color: 'var(--text-muted)' }}>
+                <span>{stageLabel(stage)}</span>
+                <span className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                <span style={{ color: 'var(--text-subtle)' }}>{stageMatches.length} matches</span>
+              </h3>
+
+              {/* Group sub-sections */}
+              {stage === 'group'
+                ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} />
+                : (
+                  <div className="flex flex-col gap-3">
+                    {[...stageMatches]
+                      .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
+                      .map(m => (
+                        <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} scoringMode={scoringMode} />
+                      ))}
+                  </div>
+                )
+              }
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

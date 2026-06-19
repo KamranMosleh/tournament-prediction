@@ -2,6 +2,19 @@
 
 A private football prediction game for friends, built with Next.js, Supabase Auth, Supabase Postgres, and Groq AI.
 
+## Table of Contents
+
+- [How To Play](#how-to-play)
+- [Current UI Behavior](#current-ui-behavior)
+- [Quick Start](#quick-start)
+- [Environment Variables](#environment-variables)
+- [Authentication Email Delivery](#authentication-email-delivery)
+- [Identity And Privacy](#identity-and-privacy)
+- [Game Rules](#game-rules)
+- [Project Layout](#project-layout)
+- [Production Scheduling](#production-scheduling)
+- [Documentation](#documentation)
+
 ## How To Play
 
 1. Create an account or sign in.
@@ -13,6 +26,20 @@ A private football prediction game for friends, built with Next.js, Supabase Aut
 The signed-out home page is an authentication gate. Create/join controls and active or archived league lists appear only after sign-in.
 
 Invite links preserve their destination through sign-in, signup, and email confirmation. For example, a user opening `/join/ABC123` returns to that invitation after authentication.
+
+## Current UI Behavior
+
+- The signed-in dashboard places active leagues first, with **Join a League** beneath them and **Create a League** alongside on wider screens. Archived leagues remain available as read-only history.
+- Each league has **Standings**, **Matches**, **Reveal**, and **My Picks** tabs. Active league admins also see **Results**.
+- The league header provides Home navigation, scoring Rules, the optional Telegram/WhatsApp chat link, and the invite code.
+- The **Matches** tab opens in chronological kick-off order. Finished games are hidden by default so upcoming and locked games are easier to find.
+- Players can reveal finished games and switch between chronological ordering and stage grouping. These view choices are local UI state and reset when the match list is remounted.
+- Match cards accept score predictions while open, become read-only at kick-off, reveal named picks after locking, and display earned points and generated match recaps after finishing.
+- Match and prediction changes are received through Supabase Realtime so standings and match views update without a full page reload.
+- The **Reveal** tab supports match-status filtering and explains when anonymous trends, named picks, and earned points become visible.
+- The **My Picks** tab shows the current tournament bonus tier, lock deadlines, saved league picks, and the point effect of changing an existing pick.
+- The **Results** tab lets admins enter the official top scorer. Manual-sync leagues also allow admins to enter and correct match results, including selecting a penalty-shootout winner for a tied final.
+- The interface is responsive: header controls and match-view buttons wrap on narrow screens, while tabs remain horizontally scrollable.
 
 ## Quick Start
 

@@ -33,7 +33,7 @@ export function MatchList({
   readOnly = false,
   scoringMode = 'multiplied',
 }: Props) {
-  const [sortByKickoff, setSortByKickoff] = useState(false)
+  const [sortByKickoff, setSortByKickoff] = useState(true)
   const [showFinished, setShowFinished] = useState(false)
 
   if (matches.length === 0) {

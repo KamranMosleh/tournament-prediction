@@ -43,7 +43,7 @@ export function insightPrompt(
     ? `\n\nLive tournament data (use this to write accurate, specific insights):\n${liveContext}`
     : '\n\nNo live match data available yet — use your general football knowledge.'
 
-  return `You are a concise football analyst. Write exactly 2 sentences about the upcoming match: ${homeTeam} vs ${awayTeam} in the ${tournament} (${stage.replace(/_/g, ' ')}).${contextBlock}\nFocus on current form, key stats, or what makes this match interesting. Be specific and factual. Do not mention predictions or scores.`
+  return `You are a concise football analyst. Write exactly 3 short sentences about the upcoming match: ${homeTeam} vs ${awayTeam} in the ${tournament} (${stage.replace(/_/g, ' ')}).${contextBlock}\nUse clear intermediate English for international users. Keep each sentence easy to read. Simple and common football jargon is allowed, but avoid advanced or technical terms. Focus on current form, key stats, or what makes this match interesting. Be specific and factual. Do not mention predictions or scores.`
 }
 
 export function punditsPrompt(

@@ -247,7 +247,7 @@ export function LeagueHub({
         )}
         {tab === 'leaderboard' && (
           <div className="flex flex-col gap-4">
-            {latestSummary && <PunditsCard summary={latestSummary} />}
+            {latestSummary && <PunditsCard summary={latestSummary} recapNumber={summaries.length} />}
             <Leaderboard scores={scores} currentPlayerId={currentPlayer.id} />
           </div>
         )}
@@ -297,7 +297,7 @@ export function LeagueHub({
   )
 }
 
-function PunditsCard({ summary }: { summary: MatchdaySummary }) {
+function PunditsCard({ summary, recapNumber }: { summary: MatchdaySummary; recapNumber: number }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="rounded-xl p-4 cursor-pointer select-none"
@@ -305,7 +305,7 @@ function PunditsCard({ summary }: { summary: MatchdaySummary }) {
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-          Latest Tournament Recap
+          Matchday {recapNumber} Recap
         </span>
         <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>{expanded ? '▲' : '▼'}</span>
       </div>

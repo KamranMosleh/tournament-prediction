@@ -51,7 +51,7 @@ export function punditsPrompt(
   results: string,
   leaderboard: string
 ): string {
-  return `You are a witty football TV pundit. Write a single paragraph (3-4 sentences) recapping the latest completed round of matches for a prediction game.\n\nInternal matchday id: ${matchDay}\nResults: ${results}\nTop leaderboard: ${leaderboard}\n\nName specific players and matches. Highlight the biggest mover. End with a look ahead. Keep it fun and pundit-like. Do not call it "Matchday ${matchDay}" in the recap text; use natural phrases like "this round", "the latest results", or "these games" instead.`
+  return `You are a witty football TV pundit. Write 3-4 short sentences recapping the latest completed round of matches for a prediction game.\n\nInternal matchday id: ${matchDay}\nResults: ${results}\nTop leaderboard: ${leaderboard}\n\nName specific players and matches. Highlight the biggest mover. End with a look ahead. Keep it fun and pundit-like. Do not call it "Matchday ${matchDay}" in the recap text; use natural phrases like "this round", "the latest results", or "these games" instead.`
 }
 
 export interface PlayerPredictionInput {

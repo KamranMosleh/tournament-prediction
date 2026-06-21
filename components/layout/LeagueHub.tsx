@@ -305,7 +305,7 @@ function PunditsCard({ summary }: { summary: MatchdaySummary }) {
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-          🎙 Matchday {summary.match_day} Recap
+          Latest Tournament Recap
         </span>
         <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>{expanded ? '▲' : '▼'}</span>
       </div>

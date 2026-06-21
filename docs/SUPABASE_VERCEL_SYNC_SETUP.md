@@ -21,6 +21,7 @@ The solution is to keep the Next.js app on Vercel Hobby, remove Vercel Cron, and
 The production policy is intentionally conservative for football-data.org free usage:
 
 - A baseline sync runs once per day.
+- Daily mode force-refreshes open-match AI insights after syncing, so latest results are included.
 - A match-window check runs every 10 minutes.
 - The match-window check calls football-data.org only when an unfinished match is between 30 minutes before kickoff and 6 hours after kickoff.
 - Outside that window, the Edge Function returns `No active match windows` without calling football-data.org.
@@ -29,6 +30,7 @@ The flow is:
 
 ```text
 Supabase pg_cron -> Supabase Edge Function -> Vercel /api/sync -> football-data.org + Supabase tables
+                                                    -> Vercel /api/ai force refresh for daily insights
 ```
 
 The free football-data.org plan currently permits 10 calls per minute, but its scores are delayed. This policy stays comfortably below the rate limit without pretending to provide true live scores.
@@ -220,6 +222,15 @@ curl -i -X POST "https://<project-ref>.supabase.co/functions/v1/sync-matches" \
   -H "x-sync-secret: <sync-secret>" \
   -H "Content-Type: application/json" \
   -d '{"mode":"daily"}'
+```
+
+For daily mode, expect each tournament result to include both `sync` and `aiInsightRefresh` statuses. The AI refresh calls `/api/ai` with:
+
+```json
+{
+  "action": "seed_matches",
+  "force": true
+}
 ```
 
 Test the match-window guard:

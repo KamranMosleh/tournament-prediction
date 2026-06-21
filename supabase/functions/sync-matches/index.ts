@@ -89,16 +89,38 @@ Deno.serve(async (req) => {
 
   const results = []
   for (const { tournament_code, tournament_season } of pairs) {
+    const result: Record<string, unknown> = { tournament_code, tournament_season }
+
     try {
       const res = await fetch(`${APP_URL}/api/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-sync-secret': SYNC_SECRET },
         body: JSON.stringify({ tournament_code, season: tournament_season }),
       })
-      results.push({ tournament_code, tournament_season, ok: res.ok, status: res.status })
+      result.sync = { ok: res.ok, status: res.status }
     } catch (e) {
-      results.push({ tournament_code, tournament_season, ok: false, error: String(e) })
+      result.sync = { ok: false, error: String(e) }
     }
+
+    if (mode === 'daily') {
+      try {
+        const res = await fetch(`${APP_URL}/api/ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-sync-secret': SYNC_SECRET },
+          body: JSON.stringify({
+            action: 'seed_matches',
+            force: true,
+            tournament_code,
+            season: tournament_season,
+          }),
+        })
+        result.aiInsightRefresh = { ok: res.ok, status: res.status }
+      } catch (e) {
+        result.aiInsightRefresh = { ok: false, error: String(e) }
+      }
+    }
+
+    results.push(result)
   }
 
   return jsonResponse({ ok: true, mode, results })

@@ -81,6 +81,14 @@ export interface MatchdaySummary {
   generated_at: string
 }
 
+export interface DailySummary {
+  id: string
+  league_id: string
+  summary_date: string
+  summary_text: string
+  generated_at: string
+}
+
 export interface PlayerRoast {
   player_name: string
   prediction: string | null  // e.g. "2-1", or null if no prediction submitted

@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { LeagueHub } from '@/components/layout/LeagueHub'
-import type { League, Player, Match, MatchPrediction, TournamentPrediction, MatchdaySummary, MatchRecap } from '@/types'
+import type { League, Player, Match, MatchPrediction, TournamentPrediction, MatchdaySummary, DailySummary, MatchRecap } from '@/types'
 
 interface Props { params: Promise<{ code: string }> }
 
@@ -44,6 +44,7 @@ export default async function LeaguePage({ params }: Props) {
     { data: predictions },
     { data: tournamentPredictions },
     { data: summaries },
+    { data: dailySummaries },
     { data: recaps },
   ] = await Promise.all([
     supabase
@@ -57,6 +58,7 @@ export default async function LeaguePage({ params }: Props) {
       : Promise.resolve({ data: [] }),
     supabase.from('tournament_predictions').select('*').eq('league_id', league.id),
     supabase.from('matchday_summaries').select('*').eq('league_id', league.id).order('match_day'),
+    supabase.from('daily_summaries').select('*').eq('league_id', league.id).order('summary_date'),
     supabase.from('match_recaps').select('*').eq('league_id', league.id),
   ])
 
@@ -69,6 +71,7 @@ export default async function LeaguePage({ params }: Props) {
       predictions={(predictions ?? []) as MatchPrediction[]}
       tournamentPredictions={(tournamentPredictions ?? []) as TournamentPrediction[]}
       summaries={(summaries ?? []) as MatchdaySummary[]}
+      dailySummaries={(dailySummaries ?? []) as DailySummary[]}
       recaps={(recaps ?? []) as MatchRecap[]}
     />
   )

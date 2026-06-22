@@ -162,6 +162,15 @@ CREATE TABLE IF NOT EXISTS matchday_summaries (
   UNIQUE (league_id, match_day)
 );
 
+CREATE TABLE IF NOT EXISTS daily_summaries (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  league_id     UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+  summary_date  DATE NOT NULL,
+  summary_text  TEXT NOT NULL,
+  generated_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (league_id, summary_date)
+);
+
 CREATE TABLE IF NOT EXISTS match_recaps (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   league_id     UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
@@ -188,6 +197,7 @@ CREATE INDEX IF NOT EXISTS idx_matches_kickoff      ON matches(kickoff_time);
 CREATE INDEX IF NOT EXISTS idx_matches_external_id  ON matches(external_match_id);
 CREATE INDEX IF NOT EXISTS idx_sync_log_tournament  ON sync_log(tournament_code, synced_at DESC);
 CREATE INDEX IF NOT EXISTS idx_matchday_summaries   ON matchday_summaries(league_id, match_day);
+CREATE INDEX IF NOT EXISTS idx_daily_summaries      ON daily_summaries(league_id, summary_date);
 CREATE INDEX IF NOT EXISTS idx_match_recaps         ON match_recaps(league_id, match_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_players_league_display_name_ci
@@ -313,6 +323,7 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 ALTER TABLE matchday_summaries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_summaries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE match_recaps ENABLE ROW LEVEL SECURITY;
 
 -- Gameplay data is readable only after Supabase Auth. All writes go through
@@ -324,6 +335,7 @@ DROP POLICY IF EXISTS "preds_read" ON match_predictions;
 DROP POLICY IF EXISTS "tourney_read" ON tournament_predictions;
 DROP POLICY IF EXISTS "sync_read" ON sync_log;
 DROP POLICY IF EXISTS "summaries_read" ON matchday_summaries;
+DROP POLICY IF EXISTS "daily_summaries_read" ON daily_summaries;
 DROP POLICY IF EXISTS "recaps_read" ON match_recaps;
 
 CREATE POLICY "leagues_read" ON leagues
@@ -340,6 +352,8 @@ CREATE POLICY "sync_read" ON sync_log
   FOR SELECT TO authenticated USING (true);
 CREATE POLICY "summaries_read" ON matchday_summaries
   FOR SELECT TO authenticated USING (true);
+CREATE POLICY "daily_summaries_read" ON daily_summaries
+  FOR SELECT TO authenticated USING (true);
 CREATE POLICY "recaps_read" ON match_recaps
   FOR SELECT TO authenticated USING (true);
 
@@ -354,18 +368,19 @@ DROP POLICY IF EXISTS "matches_insert" ON matches;
 DROP POLICY IF EXISTS "matches_update" ON matches;
 DROP POLICY IF EXISTS "sync_insert" ON sync_log;
 DROP POLICY IF EXISTS "summaries_insert" ON matchday_summaries;
+DROP POLICY IF EXISTS "daily_summaries_insert" ON daily_summaries;
 DROP POLICY IF EXISTS "recaps_insert" ON match_recaps;
 
 REVOKE ALL ON leagues, players, matches, match_predictions,
-  tournament_predictions, matchday_summaries, match_recaps, sync_log
+  tournament_predictions, matchday_summaries, daily_summaries, match_recaps, sync_log
   FROM anon;
 
 REVOKE INSERT, UPDATE, DELETE ON leagues, players, matches, match_predictions,
-  tournament_predictions, matchday_summaries, match_recaps, sync_log
+  tournament_predictions, matchday_summaries, daily_summaries, match_recaps, sync_log
   FROM authenticated;
 
 GRANT SELECT ON leagues, matches, match_predictions, tournament_predictions,
-  matchday_summaries, match_recaps, sync_log
+  matchday_summaries, daily_summaries, match_recaps, sync_log
   TO authenticated;
 
 REVOKE SELECT ON players FROM authenticated;

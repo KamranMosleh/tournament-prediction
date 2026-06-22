@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import { groqComplete, groqCompleteJSON, insightPrompt, punditsPrompt, matchRecapPrompt, type PlayerPredictionInput } from '@/lib/groq'
+import { groqComplete, groqCompleteJSON, insightPrompt, punditsPrompt, dailyPunditPrompt, matchRecapPrompt, type PlayerPredictionInput } from '@/lib/groq'
 import { getMatchContext, formatContext, deriveDifficulty } from '@/lib/football-context'
 import { computeLeaderboard, sortLeaderboard, matchPoints } from '@/lib/scoring'
 import type {
@@ -16,6 +16,12 @@ type ServiceClient = ReturnType<typeof createServiceClient>
 export type SummaryGenerationResult = {
   status: 'created' | 'skipped' | 'error'
   reason?: string
+}
+
+export type BatchGenerationResult = {
+  created: number
+  skipped: number
+  errors: number
 }
 
 export type OpenMatchEnrichmentResult = {
@@ -286,7 +292,7 @@ export async function autoGeneratePunditSummariesForTournament(
   tournamentCode: string,
   tournamentSeason: number,
   supabaseArg?: ServiceClient
-): Promise<{ created: number; skipped: number; errors: number }> {
+): Promise<BatchGenerationResult> {
   const supabase = supabaseArg ?? createServiceClient()
 
   const { data: leagues } = await supabase
@@ -333,6 +339,152 @@ export async function autoGeneratePunditSummariesForTournament(
       else if (res.status === 'skipped') skipped++
       else errors++
     }
+  }
+
+  return { created, skipped, errors }
+}
+
+function utcDateString(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+function dateRangeUtc(dateString: string): { start: string; end: string } {
+  const start = new Date(`${dateString}T00:00:00.000Z`)
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+export function yesterdayUtcString(now = new Date()): string {
+  const yesterday = new Date(now)
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+  return utcDateString(yesterday)
+}
+
+export async function generateDailyPunditSummaryForLeagueDate(
+  leagueId: string,
+  summaryDate: string,
+  supabaseArg?: ServiceClient
+): Promise<SummaryGenerationResult> {
+  if (!process.env.GROQ_API_KEY) {
+    return { status: 'skipped', reason: 'GROQ_API_KEY not set' }
+  }
+
+  const supabase = supabaseArg ?? createServiceClient()
+
+  const { data: existing } = await supabase
+    .from('daily_summaries')
+    .select('id')
+    .eq('league_id', leagueId)
+    .eq('summary_date', summaryDate)
+    .maybeSingle()
+
+  if (existing) return { status: 'skipped', reason: 'already exists' }
+
+  const { data: league } = await supabase
+    .from('leagues')
+    .select('*')
+    .eq('id', leagueId)
+    .maybeSingle()
+
+  if (!league) return { status: 'error', reason: 'League not found' }
+  if ((league as League).archived_at) return { status: 'skipped', reason: 'league archived' }
+
+  const { start, end } = dateRangeUtc(summaryDate)
+  const { data: matches } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('tournament_code', league.tournament_code)
+    .eq('tournament_season', league.tournament_season)
+    .eq('status', 'finished')
+    .gte('kickoff_time', start)
+    .lt('kickoff_time', end)
+    .order('kickoff_time', { ascending: true })
+
+  if (!matches?.length) {
+    return { status: 'skipped', reason: 'no finished matches for date' }
+  }
+
+  const { data: scoringMatches } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('tournament_code', league.tournament_code)
+    .eq('tournament_season', league.tournament_season)
+
+  const { data: players } = await supabase
+    .from('players')
+    .select('*')
+    .eq('league_id', leagueId)
+
+  const playerIds = (players ?? []).map((p: Player) => p.id)
+  const { data: predictions } = playerIds.length > 0
+    ? await supabase.from('match_predictions').select('*').in('player_id', playerIds)
+    : { data: [] }
+
+  const { data: tournamentPreds } = await supabase
+    .from('tournament_predictions')
+    .select('*')
+    .eq('league_id', leagueId)
+
+  const results = (matches as Match[])
+    .map(m => `${m.home_team} ${m.home_score}-${m.away_score} ${m.away_team}`)
+    .join(', ')
+
+  const scores = sortLeaderboard(computeLeaderboard({
+    players: (players ?? []) as Player[],
+    predictions: (predictions ?? []) as MatchPrediction[],
+    matches: (scoringMatches ?? []) as Match[],
+    tournamentPredictions: (tournamentPreds ?? []) as TournamentPrediction[],
+    scoringMode: (league as League).scoring_mode,
+    officialTopScorer: (league as League).official_top_scorer_name,
+  }))
+
+  const leaderboardStr = scores
+    .slice(0, 5)
+    .map((s, i) => `${i + 1}. ${s.display_name} ${s.total_points}pts`)
+    .join(', ')
+
+  const summary = await groqComplete(dailyPunditPrompt(summaryDate, results, leaderboardStr), 250)
+  if (!summary) return { status: 'error', reason: 'Groq returned null' }
+
+  const { error: insertError } = await supabase
+    .from('daily_summaries')
+    .insert({ league_id: leagueId, summary_date: summaryDate, summary_text: summary })
+
+  if (insertError) {
+    if (insertError.code === '23505') return { status: 'skipped', reason: 'already exists' }
+    return { status: 'error', reason: insertError.message }
+  }
+
+  return { status: 'created' }
+}
+
+export async function autoGenerateDailyPunditSummariesForTournament(
+  tournamentCode: string,
+  tournamentSeason: number,
+  summaryDate = yesterdayUtcString(),
+  supabaseArg?: ServiceClient
+): Promise<BatchGenerationResult> {
+  const supabase = supabaseArg ?? createServiceClient()
+
+  const { data: leagues } = await supabase
+    .from('leagues')
+    .select('id')
+    .eq('tournament_code', tournamentCode)
+    .eq('tournament_season', tournamentSeason)
+    .is('archived_at', null)
+
+  if (!leagues?.length) return { created: 0, skipped: 0, errors: 0 }
+
+  let created = 0
+  let skipped = 0
+  let errors = 0
+
+  for (const league of leagues as Array<{ id: string }>) {
+    const res = await generateDailyPunditSummaryForLeagueDate(league.id, summaryDate, supabase)
+    if (res.status === 'created') created++
+    else if (res.status === 'skipped') skipped++
+    else errors++
   }
 
   return { created, skipped, errors }

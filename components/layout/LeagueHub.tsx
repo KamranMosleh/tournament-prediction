@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Archive, BarChart2, Calendar, Trophy, Shield, Send, Home, Eye } from 'lucide-react'
 import type {
   League, Player, Match, MatchPrediction, TournamentPrediction,
-  MatchdaySummary, MatchRecap, MatchWithPrediction
+  MatchdaySummary, DailySummary, MatchRecap, MatchWithPrediction
 } from '@/types'
 import { computeLeaderboard, sortLeaderboard } from '@/lib/scoring'
 import { InviteCode } from '@/components/ui/InviteCode'
@@ -30,6 +30,7 @@ interface Props {
   predictions: MatchPrediction[]
   tournamentPredictions: TournamentPrediction[]
   summaries: MatchdaySummary[]
+  dailySummaries: DailySummary[]
   recaps: MatchRecap[]
 }
 
@@ -41,6 +42,7 @@ export function LeagueHub({
   predictions: initialPredictions,
   tournamentPredictions: initialTournamentPredictions,
   summaries: initialSummaries,
+  dailySummaries: initialDailySummaries,
   recaps: initialRecaps,
 }: Props) {
   const router = useRouter()
@@ -52,6 +54,7 @@ export function LeagueHub({
   const [predictions, setPredictions] = useState(initialPredictions)
   const [tournamentPredictions] = useState(initialTournamentPredictions)
   const [summaries] = useState(initialSummaries)
+  const [dailySummaries] = useState(initialDailySummaries)
   const [recaps] = useState(initialRecaps)
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
@@ -126,6 +129,7 @@ export function LeagueHub({
   }))
 
   const myTournamentPick = tournamentPredictions.find(p => p.player_id === currentPlayer.id) ?? null
+  const latestDailySummary = dailySummaries.length > 0 ? dailySummaries[dailySummaries.length - 1] : null
   const latestSummary = summaries.length > 0 ? summaries[summaries.length - 1] : null
   const deadlines = getPickDeadlines(matches)
   const winnerLocked = isDeadlinePassed(deadlines.finalKickoff)
@@ -247,7 +251,9 @@ export function LeagueHub({
         )}
         {tab === 'leaderboard' && (
           <div className="flex flex-col gap-4">
-            {latestSummary && <PunditsCard summary={latestSummary} recapNumber={summaries.length} />}
+            {latestDailySummary
+              ? <PunditsCard title={`Yesterday's Recap (${latestDailySummary.summary_date})`} text={latestDailySummary.summary_text} />
+              : latestSummary && <PunditsCard title={`Matchday ${summaries.length} Recap`} text={latestSummary.summary_text} />}
             <Leaderboard scores={scores} currentPlayerId={currentPlayer.id} />
           </div>
         )}
@@ -297,7 +303,7 @@ export function LeagueHub({
   )
 }
 
-function PunditsCard({ summary, recapNumber }: { summary: MatchdaySummary; recapNumber: number }) {
+function PunditsCard({ title, text }: { title: string; text: string }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="rounded-xl p-4 cursor-pointer select-none"
@@ -305,7 +311,7 @@ function PunditsCard({ summary, recapNumber }: { summary: MatchdaySummary; recap
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-          Matchday {recapNumber} Recap
+          {title}
         </span>
         <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>{expanded ? '▲' : '▼'}</span>
       </div>
@@ -316,7 +322,7 @@ function PunditsCard({ summary, recapNumber }: { summary: MatchdaySummary; recap
         WebkitLineClamp: expanded ? 'unset' : 2,
         WebkitBoxOrient: 'vertical',
       } as React.CSSProperties}>
-        {summary.summary_text}
+        {text}
       </p>
     </div>
   )

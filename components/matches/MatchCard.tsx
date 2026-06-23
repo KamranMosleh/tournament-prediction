@@ -127,9 +127,9 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       {(saveState !== 'idle' || match.prediction || pointsEarned !== null) && (
         <div className="flex items-center justify-between px-4 py-2"
           style={{ borderTop: '1px solid var(--border-subtle)' }}>
-          <div className="text-xs flex items-center gap-1">
-            {saveState === 'saving' && <><Loader2 size={11} className="animate-spin" style={{ color: 'var(--text-muted)' }} /><span style={{ color: 'var(--text-muted)' }}>Saving…</span></>}
-            {saveState === 'saved'  && <><Check size={11} style={{ color: 'var(--accent)' }} /><span style={{ color: 'var(--accent)' }}>Saved</span></>}
+          <div className="text-sm flex items-center gap-1">
+            {saveState === 'saving' && <><Loader2 size={13} className="animate-spin" style={{ color: 'var(--text-muted)' }} /><span style={{ color: 'var(--text-muted)' }}>Saving…</span></>}
+            {saveState === 'saved'  && <><Check size={13} style={{ color: 'var(--accent)' }} /><span style={{ color: 'var(--accent)' }}>Saved</span></>}
             {saveState === 'error'  && <span style={{ color: 'var(--red)' }}>Save failed</span>}
             {saveState === 'idle' && match.prediction && (
               <span style={{ color: 'var(--text-subtle)' }}>

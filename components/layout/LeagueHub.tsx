@@ -180,8 +180,8 @@ export function LeagueHub({
   return (
     <div className="min-h-screen flex flex-col">
       {/* Sticky header */}
-      <header className="sticky top-0 z-20 backdrop-blur-sm"
-        style={{ background: 'rgba(13,17,23,0.92)', borderBottom: '1px solid var(--border)' }}>
+      <header className="sticky top-0 z-30 isolate"
+        style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
         <div className="max-w-2xl mx-auto px-4 pt-3 pb-0">
           {/* Top row */}
           <div className="flex flex-wrap items-start justify-between gap-2 mb-2.5">

@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react'
 import type { Match, MatchRevealData, Player, TournamentPrediction } from '@/types'
 import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPanel'
+import { latestMatchDayKey, localDayKey } from '@/lib/utils'
 
-type Filter = 'all' | 'open' | 'locked' | 'finished'
+type Filter = 'all' | 'open' | 'locked' | 'finished' | 'latest_finished'
 
 interface Props {
   matches: Match[]
@@ -21,7 +22,17 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
     [matches]
   )
 
-  const filteredMatches = sortedMatches.filter(m => filter === 'all' || m.status === filter)
+  const finishedMatches = useMemo(
+    () => sortedMatches.filter(match => match.status === 'finished'),
+    [sortedMatches]
+  )
+  const latestFinishedDayKey = latestMatchDayKey(finishedMatches)
+  const latestFinishedMatches = latestFinishedDayKey
+    ? finishedMatches.filter(match => localDayKey(match.kickoff_time) === latestFinishedDayKey)
+    : []
+  const filteredMatches = filter === 'latest_finished'
+    ? latestFinishedMatches
+    : sortedMatches.filter(m => filter === 'all' || m.status === filter)
 
   const playerNameMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -68,11 +79,11 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
       </section>
 
       <section>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h3 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
             Match Predictions Reveal
           </h3>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-1">
             {(['all', 'open', 'locked', 'finished'] as Filter[]).map(opt => (
               <button
                 key={opt}
@@ -86,6 +97,18 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
                 {opt}
               </button>
             ))}
+            {latestFinishedMatches.length > 0 && (
+              <button
+                onClick={() => setFilter('latest_finished')}
+                className="px-2 py-1 text-xs rounded-md"
+                style={{
+                  background: filter === 'latest_finished' ? 'var(--accent-glow)' : 'var(--surface-2)',
+                  color: filter === 'latest_finished' ? 'var(--accent)' : 'var(--text-subtle)',
+                }}
+              >
+                latest finished ({latestFinishedMatches.length})
+              </button>
+            )}
           </div>
         </div>
 

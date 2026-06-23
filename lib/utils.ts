@@ -45,6 +45,30 @@ export function formatKickoff(iso: string): { date: string; time: string } {
   }
 }
 
+export function localDayKey(iso: string): string {
+  const date = new Date(iso)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function latestMatchDayKey(matches: Array<{ kickoff_time: string }>): string | null {
+  let latestTimestamp = -Infinity
+  let latestKey: string | null = null
+
+  for (const match of matches) {
+    const date = new Date(match.kickoff_time)
+    const dayTimestamp = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+    if (Number.isNaN(dayTimestamp) || dayTimestamp <= latestTimestamp) continue
+
+    latestTimestamp = dayTimestamp
+    latestKey = localDayKey(match.kickoff_time)
+  }
+
+  return latestKey
+}
+
 export function timeUntil(iso: string): string | null {
   const diff = new Date(iso).getTime() - Date.now()
   if (diff <= 0 || diff > 48 * 3_600_000) return null

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { CalendarClock, Eye, EyeOff, History, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
-import { stageLabel, stageOrder } from '@/lib/utils'
+import { latestMatchDayKey, localDayKey, stageLabel, stageOrder } from '@/lib/utils'
 import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
 
 interface Props {
@@ -75,7 +75,7 @@ export function MatchList({
   // Build match-id → recap lookup for O(1) access in render
   const recapMap = new Map(recaps.map(r => [r.match_id, r]))
   const finishedMatches = matches.filter(match => match.status === 'finished')
-  const latestFinishedDayKey = latestFinishedDay(finishedMatches)
+  const latestFinishedDayKey = latestMatchDayKey(finishedMatches)
   const latestFinishedMatches = latestFinishedDayKey
     ? finishedMatches.filter(match => localDayKey(match.kickoff_time) === latestFinishedDayKey)
     : []
@@ -232,30 +232,6 @@ export function MatchList({
       )}
     </div>
   )
-}
-
-function localDayKey(iso: string): string {
-  const date = new Date(iso)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function latestFinishedDay(matches: MatchWithPrediction[]): string | null {
-  let latestTimestamp = -Infinity
-  let latestKey: string | null = null
-
-  for (const match of matches) {
-    const date = new Date(match.kickoff_time)
-    const dayTimestamp = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-    if (Number.isNaN(dayTimestamp) || dayTimestamp <= latestTimestamp) continue
-
-    latestTimestamp = dayTimestamp
-    latestKey = localDayKey(match.kickoff_time)
-  }
-
-  return latestKey
 }
 
 function GroupStageSection({

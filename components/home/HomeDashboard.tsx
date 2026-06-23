@@ -98,7 +98,7 @@ function LeagueList({ title, leagues, archived = false }: { title: string; leagu
           <button
             key={session.league_id}
             onClick={() => router.push(`/league/${session.invite_code}`)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-left"
+            className="flex cursor-pointer items-center gap-3 px-3 py-2.5 rounded-lg w-full text-left"
             style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}
           >
             <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}>

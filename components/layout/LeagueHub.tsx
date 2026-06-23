@@ -224,7 +224,7 @@ export function LeagueHub({
           <div className="flex overflow-x-auto">
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className="flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors relative"
+                className="flex cursor-pointer shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors relative"
                 style={{ color: tab === t.id ? 'var(--text)' : 'var(--text-muted)' }}>
                 {t.icon}
                 {t.label}

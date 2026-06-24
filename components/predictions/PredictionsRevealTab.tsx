@@ -3,9 +3,9 @@
 import { useMemo, useState } from 'react'
 import type { Match, MatchRevealData, Player, TournamentPrediction } from '@/types'
 import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPanel'
-import { latestMatchDayKey, localDayKey } from '@/lib/utils'
+import { isWithinLastHours } from '@/lib/utils'
 
-type Filter = 'all' | 'open' | 'locked' | 'finished' | 'latest_finished'
+type Filter = 'all' | 'open' | 'locked' | 'finished' | 'last_24h'
 
 interface Props {
   matches: Match[]
@@ -26,12 +26,9 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
     () => sortedMatches.filter(match => match.status === 'finished'),
     [sortedMatches]
   )
-  const latestFinishedDayKey = latestMatchDayKey(finishedMatches)
-  const latestFinishedMatches = latestFinishedDayKey
-    ? finishedMatches.filter(match => localDayKey(match.kickoff_time) === latestFinishedDayKey)
-    : []
-  const filteredMatches = filter === 'latest_finished'
-    ? latestFinishedMatches
+  const last24hFinishedMatches = finishedMatches.filter(match => isWithinLastHours(match.kickoff_time, 24))
+  const filteredMatches = filter === 'last_24h'
+    ? last24hFinishedMatches
     : sortedMatches.filter(m => filter === 'all' || m.status === filter)
 
   const playerNameMap = useMemo(() => {
@@ -97,16 +94,16 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
                 {opt}
               </button>
             ))}
-            {latestFinishedMatches.length > 0 && (
+            {last24hFinishedMatches.length > 0 && (
               <button
-                onClick={() => setFilter('latest_finished')}
+                onClick={() => setFilter('last_24h')}
                 className="px-2 py-1 text-xs rounded-md"
                 style={{
-                  background: filter === 'latest_finished' ? 'var(--accent-glow)' : 'var(--surface-2)',
-                  color: filter === 'latest_finished' ? 'var(--accent)' : 'var(--text-subtle)',
+                  background: filter === 'last_24h' ? 'var(--accent-glow)' : 'var(--surface-2)',
+                  color: filter === 'last_24h' ? 'var(--accent)' : 'var(--text-subtle)',
                 }}
               >
-                latest finished ({latestFinishedMatches.length})
+                last 24h ({last24hFinishedMatches.length})
               </button>
             )}
           </div>

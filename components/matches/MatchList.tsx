@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { CalendarClock, Eye, EyeOff, History, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
-import { latestMatchDayKey, localDayKey, stageLabel, stageOrder } from '@/lib/utils'
+import { isWithinLastHours, stageLabel, stageOrder } from '@/lib/utils'
 import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
 
 interface Props {
@@ -35,7 +35,7 @@ export function MatchList({
 }: Props) {
   const [sortByKickoff, setSortByKickoff] = useState(true)
   const [showFinished, setShowFinished] = useState(false)
-  const [showLatestFinishedDay, setShowLatestFinishedDay] = useState(false)
+  const [showLast24hFinished, setShowLast24hFinished] = useState(false)
 
   if (matches.length === 0) {
     return (
@@ -75,17 +75,14 @@ export function MatchList({
   // Build match-id → recap lookup for O(1) access in render
   const recapMap = new Map(recaps.map(r => [r.match_id, r]))
   const finishedMatches = matches.filter(match => match.status === 'finished')
-  const latestFinishedDayKey = latestMatchDayKey(finishedMatches)
-  const latestFinishedMatches = latestFinishedDayKey
-    ? finishedMatches.filter(match => localDayKey(match.kickoff_time) === latestFinishedDayKey)
-    : []
-  const visibleMatches = showLatestFinishedDay
-    ? latestFinishedMatches
+  const last24hFinishedMatches = finishedMatches.filter(match => isWithinLastHours(match.kickoff_time, 24))
+  const visibleMatches = showLast24hFinished
+    ? last24hFinishedMatches
     : showFinished
     ? matches
     : matches.filter(match => match.status !== 'finished')
   const finishedCount = finishedMatches.length
-  const showingAllFinished = showFinished && !showLatestFinishedDay
+  const showingAllFinished = showFinished && !showLast24hFinished
 
   // Group by stage
   const grouped = new Map<MatchStage, MatchWithPrediction[]>()
@@ -109,7 +106,7 @@ export function MatchList({
           <button
             type="button"
             onClick={() => {
-              setShowLatestFinishedDay(false)
+              setShowLast24hFinished(false)
               setShowFinished(value => !value)
             }}
             aria-pressed={showingAllFinished}
@@ -124,23 +121,23 @@ export function MatchList({
             {showingAllFinished ? 'Hide finished games' : `Show finished games (${finishedCount})`}
           </button>
         )}
-        {latestFinishedMatches.length > 0 && (
+        {last24hFinishedMatches.length > 0 && (
           <button
             type="button"
             onClick={() => {
-              setShowLatestFinishedDay(value => !value)
+              setShowLast24hFinished(value => !value)
               setShowFinished(false)
             }}
-            aria-pressed={showLatestFinishedDay}
+            aria-pressed={showLast24hFinished}
             className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
             style={{
-              background: showLatestFinishedDay ? 'var(--accent-glow)' : 'var(--surface)',
-              border: `1px solid ${showLatestFinishedDay ? 'rgba(63,185,80,0.35)' : 'var(--border)'}`,
-              color: showLatestFinishedDay ? 'var(--accent)' : 'var(--text-muted)',
+              background: showLast24hFinished ? 'var(--accent-glow)' : 'var(--surface)',
+              border: `1px solid ${showLast24hFinished ? 'rgba(63,185,80,0.35)' : 'var(--border)'}`,
+              color: showLast24hFinished ? 'var(--accent)' : 'var(--text-muted)',
             }}
           >
             <History size={14} />
-            Latest finished ({latestFinishedMatches.length})
+            Last 24h ({last24hFinishedMatches.length})
           </button>
         )}
         <button
@@ -169,7 +166,7 @@ export function MatchList({
           <button
             type="button"
             onClick={() => {
-              setShowLatestFinishedDay(false)
+              setShowLast24hFinished(false)
               setShowFinished(true)
             }}
             className="mt-4 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold"
@@ -184,7 +181,7 @@ export function MatchList({
             className="text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-3"
             style={{ color: 'var(--text-muted)' }}
           >
-            <span>{showLatestFinishedDay ? 'Latest finished games' : 'All matches by kick-off'}</span>
+            <span>{showLast24hFinished ? 'Finished in last 24h' : 'All matches by kick-off'}</span>
             <span className="flex-1 h-px" style={{ background: 'var(--border)' }} />
             <span style={{ color: 'var(--text-subtle)' }}>{chronologicalMatches.length} matches</span>
           </h3>

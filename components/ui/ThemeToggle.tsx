@@ -9,11 +9,6 @@ const STORAGE_KEY = 'theme'
 const DARK_THEME_COLOR = '#0d1117'
 const LIGHT_THEME_COLOR = '#f6f8fa'
 
-function systemTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark'
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-}
-
 function storedTheme(): Theme | null {
   if (typeof window === 'undefined') return null
   const value = window.localStorage.getItem(STORAGE_KEY)
@@ -41,22 +36,9 @@ export function ThemeToggle() {
 
   useEffect(() => {
     const saved = storedTheme()
-    const initialTheme = saved ?? systemTheme()
+    const initialTheme = saved ?? 'dark'
     setTheme(initialTheme)
     applyTheme(initialTheme)
-
-    if (saved) return
-
-    const media = window.matchMedia('(prefers-color-scheme: light)')
-    const onChange = () => {
-      if (storedTheme()) return
-      const nextTheme = systemTheme()
-      setTheme(nextTheme)
-      applyTheme(nextTheme)
-    }
-
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
   }, [])
 
   const nextTheme = theme === 'light' ? 'dark' : 'light'

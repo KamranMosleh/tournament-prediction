@@ -25,8 +25,7 @@ const themeInitScript = `
     var darkColor = '#0d1117';
     var lightColor = '#f6f8fa';
     var saved = localStorage.getItem(storageKey);
-    var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-    var theme = saved === 'light' || saved === 'dark' ? saved : prefersLight ? 'light' : 'dark';
+    var theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
     var root = document.documentElement;
     root.dataset.theme = theme;
     root.style.colorScheme = theme;

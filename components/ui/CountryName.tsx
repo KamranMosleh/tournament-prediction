@@ -1,4 +1,4 @@
-import { countryFlagForName } from '@/lib/country-flags'
+import { countryFlagIconClassForName } from '@/lib/country-flags'
 
 interface CountryNameProps {
   name: string
@@ -7,16 +7,14 @@ interface CountryNameProps {
 }
 
 export function CountryName({ name, className = '', reverse = false }: CountryNameProps) {
-  const flag = countryFlagForName(name)
+  const flagClassName = countryFlagIconClassForName(name)
 
-  if (!flag) {
+  if (!flagClassName) {
     return <span className={className}>{name}</span>
   }
 
   const flagNode = (
-    <span aria-hidden="true" className="shrink-0 leading-none">
-      {flag}
-    </span>
+    <span aria-hidden="true" className={`${flagClassName} country-flag shrink-0`} />
   )
   const nameNode = <span className="truncate">{name}</span>
 

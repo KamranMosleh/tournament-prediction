@@ -151,6 +151,11 @@ export function countryCodeForName(name: string): string | null {
   return COUNTRY_CODE_BY_NAME.get(normalizeCountryName(name)) ?? null
 }
 
+export function countryFlagIconClassForName(name: string): string | null {
+  const code = countryCodeForName(name)
+  return code ? `fi fi-${code.toLowerCase()}` : null
+}
+
 export function countryFlagForName(name: string): string | null {
   const code = countryCodeForName(name)
   if (!code) return null

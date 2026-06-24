@@ -18,9 +18,34 @@ export const viewport: Viewport = {
   themeColor: '#0d1117',
 }
 
+const themeInitScript = `
+(function () {
+  try {
+    var storageKey = 'theme';
+    var darkColor = '#0d1117';
+    var lightColor = '#f6f8fa';
+    var saved = localStorage.getItem(storageKey);
+    var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    var theme = saved === 'light' || saved === 'dark' ? saved : prefersLight ? 'light' : 'dark';
+    var root = document.documentElement;
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+    function updateThemeColor() {
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', theme === 'light' ? lightColor : darkColor);
+    }
+    updateThemeColor();
+    document.addEventListener('DOMContentLoaded', updateThemeColor);
+  } catch (_) {}
+})();
+`
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body>{children}</body>
     </html>
   )

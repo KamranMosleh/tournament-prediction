@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { Session } from '@/types'
 import { createClient } from '@/lib/supabase/client'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 const TOURNAMENTS = [
   { label: 'FIFA World Cup 2026', code: 'WC', season: 2026 },
@@ -64,10 +65,13 @@ export function HomeDashboard({ email, leagues }: { email: string; leagues: Dash
             <p className="text-xs max-w-xs truncate" style={{ color: 'var(--text-muted)' }}>
               Signed in as <span style={{ color: 'var(--text)' }}>{email}</span>
             </p>
-            <button onClick={signOut} className="inline-flex items-center gap-1.5 text-xs w-fit" style={{ color: 'var(--text-subtle)' }}>
-              <LogOut size={13} />
-              Sign out
-            </button>
+            <div className="flex items-center gap-2 lg:justify-end">
+              <ThemeToggle />
+              <button onClick={signOut} className="inline-flex items-center gap-1.5 text-xs w-fit" style={{ color: 'var(--text-subtle)' }}>
+                <LogOut size={13} />
+                Sign out
+              </button>
+            </div>
           </div>
         </header>
 

@@ -19,6 +19,7 @@ import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
 import { buildMatchRevealData } from '@/lib/prediction-reveal'
 import { LeagueLifecycleDialog } from '@/components/league/LeagueLifecycleDialog'
 import { ScoringRulesDialog } from '@/components/league/ScoringRulesDialog'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 type Tab = 'leaderboard' | 'matches' | 'reveal' | 'picks' | 'results'
 
@@ -209,6 +210,7 @@ export function LeagueHub({
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
               {isOwner && <LeagueLifecycleDialog league={league} />}
               <ScoringRulesDialog scoringMode={league.scoring_mode} />
+              <ThemeToggle />
               {league.telegram_url && (
                 <a href={league.telegram_url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium"

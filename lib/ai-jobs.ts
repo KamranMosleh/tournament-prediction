@@ -1,7 +1,9 @@
 import { createServiceClient } from '@/lib/supabase/server'
+import { createHash } from 'crypto'
 import { groqComplete, groqCompleteJSON, insightPrompt, punditsPrompt, dailyPunditPrompt, matchRecapPrompt, type PlayerPredictionInput } from '@/lib/groq'
 import { getMatchContext, formatContext, deriveDifficulty } from '@/lib/football-context'
 import { computeLeaderboard, sortLeaderboard, matchPoints } from '@/lib/scoring'
+import { formatCoverageLabel, getVenueLocalDateInfo } from '@/lib/venue-date'
 import type {
   League,
   Match,
@@ -14,12 +16,13 @@ import type {
 type ServiceClient = ReturnType<typeof createServiceClient>
 
 export type SummaryGenerationResult = {
-  status: 'created' | 'skipped' | 'error'
+  status: 'created' | 'updated' | 'skipped' | 'error'
   reason?: string
 }
 
 export type BatchGenerationResult = {
   created: number
+  updated: number
   skipped: number
   errors: number
 }
@@ -302,7 +305,7 @@ export async function autoGeneratePunditSummariesForTournament(
     .eq('tournament_season', tournamentSeason)
     .is('archived_at', null)
 
-  if (!leagues?.length) return { created: 0, skipped: 0, errors: 0 }
+  if (!leagues?.length) return { created: 0, updated: 0, skipped: 0, errors: 0 }
 
   const { data: allMatches } = await supabase
     .from('matches')
@@ -311,7 +314,7 @@ export async function autoGeneratePunditSummariesForTournament(
     .eq('tournament_season', tournamentSeason)
     .not('match_day', 'is', null)
 
-  if (!allMatches?.length) return { created: 0, skipped: 0, errors: 0 }
+  if (!allMatches?.length) return { created: 0, updated: 0, skipped: 0, errors: 0 }
 
   const dayStats = new Map<number, { total: number; finished: number }>()
   for (const row of allMatches as Array<{ match_day: number; status: string }>) {
@@ -326,9 +329,10 @@ export async function autoGeneratePunditSummariesForTournament(
     .map(([day]) => day)
     .sort((a, b) => a - b)
 
-  if (!completeDays.length) return { created: 0, skipped: 0, errors: 0 }
+  if (!completeDays.length) return { created: 0, updated: 0, skipped: 0, errors: 0 }
 
   let created = 0
+  let updated = 0
   let skipped = 0
   let errors = 0
 
@@ -336,34 +340,128 @@ export async function autoGeneratePunditSummariesForTournament(
     for (const day of completeDays) {
       const res = await generatePunditSummaryForMatchDay(league.id, day, supabase)
       if (res.status === 'created') created++
+      else if (res.status === 'updated') updated++
       else if (res.status === 'skipped') skipped++
       else errors++
     }
   }
 
-  return { created, skipped, errors }
+  return { created, updated, skipped, errors }
 }
 
-function utcDateString(date: Date): string {
-  return date.toISOString().slice(0, 10)
+type DailyCoverageGroup = {
+  localDate: string
+  coverageKey: string
+  coverageLabel: string
+  matches: Match[]
 }
 
-function dateRangeUtc(dateString: string): { start: string; end: string } {
-  const start = new Date(`${dateString}T00:00:00.000Z`)
-  const end = new Date(start)
-  end.setUTCDate(end.getUTCDate() + 1)
-  return { start: start.toISOString(), end: end.toISOString() }
+type ExistingDailySummary = {
+  id: string
+  coverage_fingerprint: string | null
 }
 
-export function yesterdayUtcString(now = new Date()): string {
-  const yesterday = new Date(now)
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1)
-  return utcDateString(yesterday)
+function isFinishedWithScore(match: Match): boolean {
+  return match.status === 'finished' && match.home_score !== null && match.away_score !== null
 }
 
-export async function generateDailyPunditSummaryForLeagueDate(
+function buildDailyCoverageGroups(matches: Match[]): DailyCoverageGroup[] {
+  const grouped = new Map<string, Match[]>()
+
+  for (const match of matches) {
+    const { localDate } = getVenueLocalDateInfo(match)
+    const rows = grouped.get(localDate) ?? []
+    rows.push(match)
+    grouped.set(localDate, rows)
+  }
+
+  return [...grouped.entries()]
+    .map(([localDate, groupMatches]) => ({
+      localDate,
+      coverageKey: `venue-date:${localDate}`,
+      coverageLabel: formatCoverageLabel(localDate),
+      matches: [...groupMatches].sort(
+        (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
+      ),
+    }))
+    .sort((a, b) => a.localDate.localeCompare(b.localDate))
+}
+
+function selectDailyCoverageGroup(matches: Match[], localDate?: string): DailyCoverageGroup | null {
+  const eligibleGroups = buildDailyCoverageGroups(matches)
+    .filter(group => group.matches.length > 0 && group.matches.every(isFinishedWithScore))
+
+  if (localDate) {
+    return eligibleGroups.find(group => group.localDate === localDate) ?? null
+  }
+
+  return eligibleGroups.at(-1) ?? null
+}
+
+function formatDailyResultLine(match: Match): string {
+  const info = getVenueLocalDateInfo(match)
+  const location = match.venue && info.city ? `, ${match.venue}, ${info.city}` : ''
+  return `${match.home_team} ${match.home_score}-${match.away_score} ${match.away_team}${location}`
+}
+
+function buildDailyCoverageFingerprint(
+  league: League,
+  group: DailyCoverageGroup,
+  scores: ReturnType<typeof sortLeaderboard>
+): string {
+  const payload = {
+    version: 1,
+    coverageKey: group.coverageKey,
+    matches: group.matches.map(match => ({
+      id: match.id,
+      status: match.status,
+      home_score: match.home_score,
+      away_score: match.away_score,
+      result_winner_team: match.result_winner_team,
+    })),
+    scoringMode: league.scoring_mode,
+    officialTopScorer: league.official_top_scorer_name ?? '',
+    leaderboard: scores.map(score => ({
+      player_id: score.player_id,
+      display_name: score.display_name,
+      match_points: score.match_points,
+      tournament_points: score.tournament_points,
+      total_points: score.total_points,
+      exact_scores: score.exact_scores,
+      predictions_submitted: score.predictions_submitted,
+    })),
+  }
+
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+}
+
+async function findExistingDailySummary(
+  supabase: ServiceClient,
   leagueId: string,
-  summaryDate: string,
+  group: DailyCoverageGroup
+): Promise<ExistingDailySummary | null> {
+  const { data: byCoverage } = await supabase
+    .from('daily_summaries')
+    .select('id, coverage_fingerprint')
+    .eq('league_id', leagueId)
+    .eq('coverage_key', group.coverageKey)
+    .maybeSingle()
+
+  if (byCoverage) return byCoverage as ExistingDailySummary
+
+  const { data: byDate } = await supabase
+    .from('daily_summaries')
+    .select('id, coverage_fingerprint')
+    .eq('league_id', leagueId)
+    .eq('summary_date', group.localDate)
+    .maybeSingle()
+
+  return (byDate as ExistingDailySummary | null) ?? null
+}
+
+export async function generateLatestDailyPunditSummaryForLeague(
+  leagueId: string,
+  localDate?: string,
   supabaseArg?: ServiceClient
 ): Promise<SummaryGenerationResult> {
   if (!process.env.GROQ_API_KEY) {
@@ -371,15 +469,6 @@ export async function generateDailyPunditSummaryForLeagueDate(
   }
 
   const supabase = supabaseArg ?? createServiceClient()
-
-  const { data: existing } = await supabase
-    .from('daily_summaries')
-    .select('id')
-    .eq('league_id', leagueId)
-    .eq('summary_date', summaryDate)
-    .maybeSingle()
-
-  if (existing) return { status: 'skipped', reason: 'already exists' }
 
   const { data: league } = await supabase
     .from('leagues')
@@ -390,26 +479,21 @@ export async function generateDailyPunditSummaryForLeagueDate(
   if (!league) return { status: 'error', reason: 'League not found' }
   if ((league as League).archived_at) return { status: 'skipped', reason: 'league archived' }
 
-  const { start, end } = dateRangeUtc(summaryDate)
   const { data: matches } = await supabase
     .from('matches')
     .select('*')
     .eq('tournament_code', league.tournament_code)
     .eq('tournament_season', league.tournament_season)
-    .eq('status', 'finished')
-    .gte('kickoff_time', start)
-    .lt('kickoff_time', end)
     .order('kickoff_time', { ascending: true })
 
-  if (!matches?.length) {
-    return { status: 'skipped', reason: 'no finished matches for date' }
+  const allMatches = (matches ?? []) as Match[]
+  const group = selectDailyCoverageGroup(allMatches, localDate)
+  if (!group) {
+    return {
+      status: 'skipped',
+      reason: localDate ? 'no complete venue-date coverage for date' : 'no complete venue-date coverage',
+    }
   }
-
-  const { data: scoringMatches } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('tournament_code', league.tournament_code)
-    .eq('tournament_season', league.tournament_season)
 
   const { data: players } = await supabase
     .from('players')
@@ -426,30 +510,56 @@ export async function generateDailyPunditSummaryForLeagueDate(
     .select('*')
     .eq('league_id', leagueId)
 
-  const results = (matches as Match[])
-    .map(m => `${m.home_team} ${m.home_score}-${m.away_score} ${m.away_team}`)
-    .join(', ')
-
+  const typedLeague = league as League
   const scores = sortLeaderboard(computeLeaderboard({
     players: (players ?? []) as Player[],
     predictions: (predictions ?? []) as MatchPrediction[],
-    matches: (scoringMatches ?? []) as Match[],
+    matches: allMatches,
     tournamentPredictions: (tournamentPreds ?? []) as TournamentPrediction[],
-    scoringMode: (league as League).scoring_mode,
-    officialTopScorer: (league as League).official_top_scorer_name,
+    scoringMode: typedLeague.scoring_mode,
+    officialTopScorer: typedLeague.official_top_scorer_name,
   }))
 
+  const fingerprint = buildDailyCoverageFingerprint(typedLeague, group, scores)
+  const existing = await findExistingDailySummary(supabase, leagueId, group)
+  if (existing?.coverage_fingerprint === fingerprint) {
+    return { status: 'skipped', reason: 'already current' }
+  }
+
+  const results = group.matches.map(formatDailyResultLine).join('\n')
   const leaderboardStr = scores
     .slice(0, 5)
     .map((s, i) => `${i + 1}. ${s.display_name} ${s.total_points}pts`)
     .join(', ')
 
-  const summary = await groqComplete(dailyPunditPrompt(summaryDate, results, leaderboardStr), 250)
+  const summary = await groqComplete(dailyPunditPrompt(group.coverageLabel, results, leaderboardStr), 250)
   if (!summary) return { status: 'error', reason: 'Groq returned null' }
+
+  const payload = {
+    league_id: leagueId,
+    summary_date: group.localDate,
+    coverage_key: group.coverageKey,
+    coverage_label: group.coverageLabel,
+    covered_match_ids: group.matches.map(match => match.id),
+    coverage_fingerprint: fingerprint,
+    match_count: group.matches.length,
+    summary_text: summary,
+    generated_at: new Date().toISOString(),
+  }
+
+  if (existing) {
+    const { error: updateError } = await supabase
+      .from('daily_summaries')
+      .update(payload)
+      .eq('id', existing.id)
+
+    if (updateError) return { status: 'error', reason: updateError.message }
+    return { status: 'updated' }
+  }
 
   const { error: insertError } = await supabase
     .from('daily_summaries')
-    .insert({ league_id: leagueId, summary_date: summaryDate, summary_text: summary })
+    .insert(payload)
 
   if (insertError) {
     if (insertError.code === '23505') return { status: 'skipped', reason: 'already exists' }
@@ -459,10 +569,18 @@ export async function generateDailyPunditSummaryForLeagueDate(
   return { status: 'created' }
 }
 
+export async function generateDailyPunditSummaryForLeagueDate(
+  leagueId: string,
+  summaryDate: string,
+  supabaseArg?: ServiceClient
+): Promise<SummaryGenerationResult> {
+  return generateLatestDailyPunditSummaryForLeague(leagueId, summaryDate, supabaseArg)
+}
+
 export async function autoGenerateDailyPunditSummariesForTournament(
   tournamentCode: string,
   tournamentSeason: number,
-  summaryDate = yesterdayUtcString(),
+  summaryDate?: string,
   supabaseArg?: ServiceClient
 ): Promise<BatchGenerationResult> {
   const supabase = supabaseArg ?? createServiceClient()
@@ -474,20 +592,22 @@ export async function autoGenerateDailyPunditSummariesForTournament(
     .eq('tournament_season', tournamentSeason)
     .is('archived_at', null)
 
-  if (!leagues?.length) return { created: 0, skipped: 0, errors: 0 }
+  if (!leagues?.length) return { created: 0, updated: 0, skipped: 0, errors: 0 }
 
   let created = 0
+  let updated = 0
   let skipped = 0
   let errors = 0
 
   for (const league of leagues as Array<{ id: string }>) {
-    const res = await generateDailyPunditSummaryForLeagueDate(league.id, summaryDate, supabase)
+    const res = await generateLatestDailyPunditSummaryForLeague(league.id, summaryDate, supabase)
     if (res.status === 'created') created++
+    else if (res.status === 'updated') updated++
     else if (res.status === 'skipped') skipped++
     else errors++
   }
 
-  return { created, skipped, errors }
+  return { created, updated, skipped, errors }
 }
 
 // ─────────────────────────────────────────────────────────────

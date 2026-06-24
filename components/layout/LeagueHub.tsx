@@ -55,7 +55,7 @@ export function LeagueHub({
   const [predictions, setPredictions] = useState(initialPredictions)
   const [tournamentPredictions] = useState(initialTournamentPredictions)
   const [summaries] = useState(initialSummaries)
-  const [dailySummaries] = useState(initialDailySummaries)
+  const [dailySummaries, setDailySummaries] = useState(initialDailySummaries)
   const [recaps] = useState(initialRecaps)
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
@@ -65,7 +65,8 @@ export function LeagueHub({
     setPlayers(initialPlayers)
     setMatches(initialMatches)
     setPredictions(initialPredictions)
-  }, [initialPlayers, initialMatches, initialPredictions])
+    setDailySummaries(initialDailySummaries)
+  }, [initialPlayers, initialMatches, initialPredictions, initialDailySummaries])
 
   // Stable ref for player IDs to avoid Realtime re-subscribe loop
   const playerIdsRef = useRef(initialPlayers.map(p => p.id))
@@ -84,6 +85,14 @@ export function LeagueHub({
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, payload => {
         setMatches(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_summaries', filter: `league_id=eq.${league.id}` }, () => {
+        supabase
+          .from('daily_summaries')
+          .select('*')
+          .eq('league_id', league.id)
+          .order('summary_date')
+          .then(({ data }) => { if (data) setDailySummaries(data as DailySummary[]) })
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -131,6 +140,9 @@ export function LeagueHub({
 
   const myTournamentPick = tournamentPredictions.find(p => p.player_id === currentPlayer.id) ?? null
   const latestDailySummary = dailySummaries.length > 0 ? dailySummaries[dailySummaries.length - 1] : null
+  const latestDailySummaryTitle = latestDailySummary
+    ? `Latest Recap: ${latestDailySummary.coverage_label ?? `${latestDailySummary.summary_date} games`}`
+    : null
   const latestSummary = summaries.length > 0 ? summaries[summaries.length - 1] : null
   const deadlines = getPickDeadlines(matches)
   const winnerLocked = isDeadlinePassed(deadlines.finalKickoff)
@@ -254,7 +266,7 @@ export function LeagueHub({
         {tab === 'leaderboard' && (
           <div className="flex flex-col gap-4">
             {latestDailySummary
-              ? <PunditsCard title={`Yesterday's Recap (${latestDailySummary.summary_date})`} text={latestDailySummary.summary_text} />
+              ? <PunditsCard title={latestDailySummaryTitle!} text={latestDailySummary.summary_text} />
               : latestSummary && <PunditsCard title={`Matchday ${summaries.length} Recap`} text={latestSummary.summary_text} />}
             <Leaderboard scores={scores} currentPlayerId={currentPlayer.id} />
           </div>

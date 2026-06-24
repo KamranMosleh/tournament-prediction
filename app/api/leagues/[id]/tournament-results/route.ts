@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getVerifiedPlayer } from '@/lib/auth'
 import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
+import { generateLatestDailyPunditSummaryForLeague } from '@/lib/ai-jobs'
 import type { Match } from '@/types'
 
 type RouteContext = {
@@ -70,7 +71,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to save official top scorer' }, { status: 500 })
     }
 
-    return NextResponse.json({ league: updatedLeague })
+    const aiDailySummary = await generateLatestDailyPunditSummaryForLeague(id, undefined, supabase)
+
+    return NextResponse.json({ league: updatedLeague, aiDailySummary })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

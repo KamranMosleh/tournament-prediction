@@ -55,11 +55,11 @@ export function punditsPrompt(
 }
 
 export function dailyPunditPrompt(
-  summaryDate: string,
+  coverageLabel: string,
   results: string,
   leaderboard: string
 ): string {
-  return `You are a witty football TV pundit. Write 3-4 short sentences recapping yesterday's finished matches for a prediction game.\n\nDate covered: ${summaryDate}\nResults: ${results}\nTop leaderboard: ${leaderboard}\n\nName specific players and matches. Highlight the biggest mover if the leaderboard data supports it. Keep it fun and pundit-like. Do not call this a matchday or round; use phrases like "yesterday", "these results", or "the latest games".`
+  return `You are a witty football TV pundit. Write 3-4 short sentences recapping these completed games for a prediction game.\n\nCoverage: ${coverageLabel}\nResults:\n${results}\nTop leaderboard: ${leaderboard}\n\nName specific players and matches. Mention venue or city only when it appears in the Results list; do not invent locations. Highlight the biggest mover if the leaderboard data supports it. Keep it fun and pundit-like. Do not call this a matchday or round; use phrases like "these results" or "the latest games".`
 }
 
 export interface PlayerPredictionInput {

@@ -85,6 +85,11 @@ export interface DailySummary {
   id: string
   league_id: string
   summary_date: string
+  coverage_key: string | null
+  coverage_label: string | null
+  covered_match_ids: string[] | null
+  coverage_fingerprint: string | null
+  match_count: number | null
   summary_text: string
   generated_at: string
 }

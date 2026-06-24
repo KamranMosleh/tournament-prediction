@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getVerifiedPlayer } from '@/lib/auth'
 import {
   autoGeneratePunditSummariesForLeagueMatchDay,
+  generateLatestDailyPunditSummaryForLeague,
   autoGenerateMatchRecapsForMatch,
   enrichOpenMatchesForTournament,
 } from '@/lib/ai-jobs'
@@ -91,15 +92,16 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: 'Failed to save result' }, { status: 500 })
 
-    const [aiSummary, aiRecap, aiEnrichment] = await Promise.all([
+    const [aiSummary, aiDailySummary, aiRecap, aiEnrichment] = await Promise.all([
       match.match_day
         ? autoGeneratePunditSummariesForLeagueMatchDay(player.league_id, match.match_day, supabase)
         : Promise.resolve({ status: 'skipped' as const, reason: 'match day unavailable' }),
+      generateLatestDailyPunditSummaryForLeague(player.league_id, undefined, supabase),
       autoGenerateMatchRecapsForMatch(match_id, match.tournament_code, match.tournament_season, supabase),
       enrichOpenMatchesForTournament(match.tournament_code, match.tournament_season, {}, supabase),
     ])
 
-    return NextResponse.json({ match: data, aiSummary, aiRecap, aiEnrichment })
+    return NextResponse.json({ match: data, aiSummary, aiDailySummary, aiRecap, aiEnrichment })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

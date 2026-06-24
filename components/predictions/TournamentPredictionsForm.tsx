@@ -8,6 +8,7 @@ import {
   topScorerPointsForSubmittedAt,
   winnerPointsForSubmittedAt,
 } from '@/lib/tournament-picks'
+import { CountryName } from '@/components/ui/CountryName'
 
 const WORLD_CUP_2026_TEAMS = [
   'Argentina', 'Australia', 'Belgium', 'Brazil', 'Cameroon', 'Canada',
@@ -166,7 +167,7 @@ export function TournamentPredictionsForm({
           </div>
           {existing ? (
             <div className="flex flex-col gap-3">
-              <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={existing.winner_team || 'Not submitted'} />
+              <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={<CountryName name={existing.winner_team || 'Not submitted'} />} />
               <PredRow icon={<User size={14} style={{ color: 'var(--blue)' }} />} label="Golden Boot" value={existing.top_scorer_name || 'Not submitted'} />
             </div>
           ) : (
@@ -188,7 +189,7 @@ export function TournamentPredictionsForm({
           </div>
           {existing ? (
             <div className="flex flex-col gap-3">
-              <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={existing.winner_team || 'Not submitted'} />
+              <PredRow icon={<Trophy size={14} style={{ color: 'var(--gold)' }} />} label="Tournament winner" value={<CountryName name={existing.winner_team || 'Not submitted'} />} />
               <PredRow icon={<User size={14} style={{ color: 'var(--blue)' }} />} label="Golden Boot" value={existing.top_scorer_name || 'Not submitted'} />
             </div>
           ) : (
@@ -258,7 +259,7 @@ export function TournamentPredictionsForm({
                   onMouseEnter={e => { (e.target as HTMLElement).style.background = 'var(--accent-glow)' }}
                   onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent' }}
                 >
-                  {team}
+                  <CountryName name={team} />
                 </button>
               ))}
               {filteredTeams.length === 0 && (
@@ -269,7 +270,9 @@ export function TournamentPredictionsForm({
         </div>
         {winner && (
           <div className="flex items-center gap-2 mt-2">
-            <span className="text-sm font-medium" style={{ color: 'var(--accent)' }}>✓ {winner}</span>
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: 'var(--accent)' }}>
+              ✓ <CountryName name={winner} />
+            </span>
             {!winnerLocked && (
               <button onClick={() => setWinner('')} className="text-xs" style={{ color: 'var(--text-muted)' }}>change</button>
             )}
@@ -366,7 +369,7 @@ function fmt(iso: string): string {
   })
 }
 
-function PredRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function PredRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--surface-2)' }}>
       {icon}
@@ -387,7 +390,9 @@ function LeaguePicksCard({ rows }: { rows: Array<{ player: string; winner: strin
           <div key={row.player} className="text-xs" style={{ color: 'var(--text-muted)' }}>
             <span style={{ color: 'var(--text)', fontWeight: 600 }}>{row.player}</span>
             {' · '}
-            Winner: {row.winner}
+            <span className="inline-flex items-center gap-1">
+              Winner: <CountryName name={row.winner} />
+            </span>
             {' · '}
             Top scorer: {row.scorer}
           </div>

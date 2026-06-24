@@ -7,6 +7,8 @@ import type { League, Match } from '@/types'
 import { formatKickoff } from '@/lib/utils'
 import { deriveTournamentWinner } from '@/lib/scoring'
 import { getPickDeadlines, isDeadlinePassed } from '@/lib/tournament-picks'
+import { formatCountryName } from '@/lib/country-flags'
+import { CountryName } from '@/components/ui/CountryName'
 
 interface Props {
   matches: Match[]
@@ -130,7 +132,7 @@ function TournamentResultsCard({ matches, league }: Props) {
         <div>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Tournament winner</p>
           <p className="text-sm font-semibold mt-0.5" style={{ color: tournamentWinner ? 'var(--text)' : 'var(--text-subtle)' }}>
-            {tournamentWinner ?? 'Awaiting the completed final'}
+            {tournamentWinner ? <CountryName name={tournamentWinner} /> : 'Awaiting the completed final'}
           </p>
         </div>
       </div>
@@ -254,7 +256,9 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
         )}
       </div>
       <div className="flex items-center gap-3">
-        <span className="flex-1 text-sm font-medium text-right" style={{ color: 'var(--text)' }}>{match.home_team}</span>
+        <span className="flex-1 min-w-0 text-sm font-medium text-right" style={{ color: 'var(--text)' }}>
+          <CountryName name={match.home_team} reverse className="justify-end" />
+        </span>
         <div className="flex items-center gap-1.5 shrink-0">
           <input
             type="number"
@@ -276,7 +280,9 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
             style={{ background: 'var(--bg)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
           />
         </div>
-        <span className="flex-1 text-sm font-medium" style={{ color: 'var(--text)' }}>{match.away_team}</span>
+        <span className="flex-1 min-w-0 text-sm font-medium" style={{ color: 'var(--text)' }}>
+          <CountryName name={match.away_team} />
+        </span>
         <button
           type="button"
           onClick={submit}
@@ -305,15 +311,17 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
             style={{ background: 'var(--bg)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
           >
             <option value="">Select winner</option>
-            <option value={match.home_team}>{match.home_team}</option>
-            <option value={match.away_team}>{match.away_team}</option>
+            <option value={match.home_team}>{formatCountryName(match.home_team)}</option>
+            <option value={match.away_team}>{formatCountryName(match.away_team)}</option>
           </select>
         </div>
       )}
 
       {match.stage === 'final' && match.result_winner_team && !isTiedFinal && (
         <p className="text-xs mt-2 text-center" style={{ color: 'var(--gold)' }}>
-          Champion: {match.result_winner_team}
+          <span className="inline-flex items-center justify-center gap-1">
+            Champion: <CountryName name={match.result_winner_team} />
+          </span>
         </p>
       )}
       {error && <p className="text-xs mt-2 text-center" style={{ color: 'var(--red)' }}>{error}</p>}

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import type { Match, MatchRevealData, Player, TournamentPrediction } from '@/types'
 import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPanel'
 import { isWithinLastHours } from '@/lib/utils'
+import { CountryName } from '@/components/ui/CountryName'
 
 type Filter = 'all' | 'open' | 'locked' | 'finished' | 'last_24h'
 
@@ -67,7 +68,9 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
           {tournamentRows.map(row => (
             <div key={row.player} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
               <span className="font-semibold" style={{ color: 'var(--text)' }}>{row.player}</span>
-              <span>Winner: {row.winner}</span>
+              <span className="inline-flex items-center gap-1">
+                Winner: <CountryName name={row.winner} />
+              </span>
               <span style={{ color: 'var(--text-subtle)' }}>·</span>
               <span>Top scorer: {row.scorer}</span>
             </div>
@@ -116,7 +119,11 @@ export function PredictionsRevealTab({ matches, reveals, players, tournamentPred
             return (
               <div key={match.id} className="rounded-xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <div className="px-4 py-2 text-xs" style={{ color: 'var(--text-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
-                  {match.home_team} vs {match.away_team}
+                  <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <CountryName name={match.home_team} />
+                    <span>vs</span>
+                    <CountryName name={match.away_team} />
+                  </span>
                 </div>
                 <PredictionRevealPanel match={match} reveal={reveal} />
               </div>

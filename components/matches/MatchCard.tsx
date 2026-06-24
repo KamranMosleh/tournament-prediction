@@ -8,6 +8,7 @@ import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
 import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPanel'
 import { matchPoints } from '@/lib/scoring'
+import { CountryName } from '@/components/ui/CountryName'
 
 interface Props {
   match: MatchWithPrediction
@@ -95,8 +96,8 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
 
       {/* Teams + score inputs */}
       <div className="flex items-center gap-3 px-4 py-4">
-        <span className="flex-1 font-semibold text-sm text-right leading-tight" style={{ color: 'var(--text)' }}>
-          {match.home_team}
+        <span className="flex-1 min-w-0 font-semibold text-sm text-right leading-tight" style={{ color: 'var(--text)' }}>
+          <CountryName name={match.home_team} reverse className="justify-end" />
         </span>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -107,8 +108,8 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
             disabled={isLocked} ariaLabel="Away score" />
         </div>
 
-        <span className="flex-1 font-semibold text-sm leading-tight" style={{ color: 'var(--text)' }}>
-          {match.away_team}
+        <span className="flex-1 min-w-0 font-semibold text-sm leading-tight" style={{ color: 'var(--text)' }}>
+          <CountryName name={match.away_team} />
         </span>
       </div>
 

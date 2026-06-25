@@ -100,11 +100,12 @@ Keep email confirmation enabled. Disabling it avoids confirmation emails but all
 Match prediction scoring:
 
 - Exact score: 3 points
-- Correct outcome: 1 point
+- Correct score difference: 2 points
+- Correct outcome with the wrong score difference: 1 point
 - Wrong outcome: 0 points
 
 In multiplied mode, stage multipliers are group x1, round of 16 x2, quarter-final x3, semi-final x4, third place x4, and final x5.
-In flat mode, every stage remains 3/1/0 with no multiplier.
+In flat mode, every stage remains 3/2/1/0 with no multiplier.
 
 Tournament picks use time-weighted bonuses:
 

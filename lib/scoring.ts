@@ -8,6 +8,7 @@ import {
 
 export const BASE_MATCH_POINTS = {
   exact: 3,
+  difference: 2,
   outcome: 1,
   wrong: 0,
 } as const
@@ -28,9 +29,14 @@ export function matchPoints(
   mode: ScoringMode = 'multiplied'
 ): number {
   let base: number = BASE_MATCH_POINTS.wrong
+  const predictedDifference = predHome - predAway
+  const realDifference = realHome - realAway
+
   if (predHome === realHome && predAway === realAway) {
     base = BASE_MATCH_POINTS.exact
-  } else if (Math.sign(predHome - predAway) === Math.sign(realHome - realAway)) {
+  } else if (predictedDifference === realDifference) {
+    base = BASE_MATCH_POINTS.difference
+  } else if (Math.sign(predictedDifference) === Math.sign(realDifference)) {
     base = BASE_MATCH_POINTS.outcome
   }
   return mode === 'multiplied' ? base * STAGE_MULTIPLIERS[stage] : base

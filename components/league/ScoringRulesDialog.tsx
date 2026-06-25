@@ -87,8 +87,9 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
           </div>
 
           <RuleSection icon={<CheckCircle2 size={15} />} title="Match predictions">
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="grid grid-cols-2 gap-2 mb-4 sm:grid-cols-4">
               <PointCard label="Exact score" points={BASE_MATCH_POINTS.exact} />
+              <PointCard label="Correct difference" points={BASE_MATCH_POINTS.difference} />
               <PointCard label="Correct outcome" points={BASE_MATCH_POINTS.outcome} />
               <PointCard label="Wrong outcome" points={BASE_MATCH_POINTS.wrong} />
             </div>
@@ -104,7 +105,7 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
                     return (
                       <div
                         key={stage}
-                        className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-2 text-xs"
+                        className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 px-3 py-2 text-xs"
                         style={{
                           background: index % 2 === 0 ? 'var(--surface-2)' : 'transparent',
                           color: 'var(--text-muted)',
@@ -112,8 +113,8 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
                       >
                         <span style={{ color: 'var(--text)' }}>{stageLabel(stage)}</span>
                         <span>x{multiplier}</span>
-                        <span className="font-medium tabular-nums">
-                          Exact {BASE_MATCH_POINTS.exact * multiplier} · Outcome {BASE_MATCH_POINTS.outcome * multiplier}
+                        <span className="col-span-2 font-medium tabular-nums">
+                          Exact {BASE_MATCH_POINTS.exact * multiplier} / Difference {BASE_MATCH_POINTS.difference * multiplier} / Outcome {BASE_MATCH_POINTS.outcome * multiplier}
                         </span>
                       </div>
                     )
@@ -122,7 +123,7 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
               </>
             ) : (
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                Flat mode uses {BASE_MATCH_POINTS.exact}/{BASE_MATCH_POINTS.outcome}/{BASE_MATCH_POINTS.wrong} points at every stage, with no multipliers.
+                Flat mode uses {BASE_MATCH_POINTS.exact}/{BASE_MATCH_POINTS.difference}/{BASE_MATCH_POINTS.outcome}/{BASE_MATCH_POINTS.wrong} points at every stage, with no multipliers.
               </p>
             )}
           </RuleSection>

@@ -39,7 +39,7 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
 
   // Points earned on finished match
   let pointsEarned: number | null = null
-  let pointsKind: 'exact' | 'outcome' | 'wrong' = 'wrong'
+  let pointsKind: 'exact' | 'difference' | 'outcome' | 'wrong' = 'wrong'
   if (match.status === 'finished' && match.prediction && match.home_score !== null && match.away_score !== null) {
     const p = match.prediction
     pointsEarned = matchPoints(
@@ -50,9 +50,14 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       match.stage,
       scoringMode
     )
+    const predictedDifference = p.home_score - p.away_score
+    const realDifference = match.home_score - match.away_score
+
     if (p.home_score === match.home_score && p.away_score === match.away_score) {
       pointsKind = 'exact'
-    } else if (Math.sign(p.home_score - p.away_score) === Math.sign(match.home_score - match.away_score)) {
+    } else if (predictedDifference === realDifference) {
+      pointsKind = 'difference'
+    } else if (Math.sign(predictedDifference) === Math.sign(realDifference)) {
       pointsKind = 'outcome'
     }
   }
@@ -182,9 +187,10 @@ function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {
   )
 }
 
-function PointsBadge({ pts, kind }: { pts: number; kind: 'exact' | 'outcome' | 'wrong' }) {
+function PointsBadge({ pts, kind }: { pts: number; kind: 'exact' | 'difference' | 'outcome' | 'wrong' }) {
   const cfg =
     kind === 'exact' ? { label: `+${pts} pts`, color: 'var(--accent)',      bg: 'var(--accent-glow)',           border: 'rgba(63,185,80,0.3)' } :
+    kind === 'difference' ? { label: `+${pts} pts`, color: 'var(--accent)', bg: 'rgba(63,185,80,0.12)', border: 'rgba(63,185,80,0.24)' } :
     kind === 'outcome' ? { label: `+${pts} ${pts === 1 ? 'pt' : 'pts'}`, color: 'var(--gold)', bg: 'rgba(210,153,34,0.12)', border: 'rgba(210,153,34,0.3)' } :
                          { label: '0 pts', color: 'var(--text-subtle)', bg: 'var(--surface-2)', border: 'var(--border)' }
   return (

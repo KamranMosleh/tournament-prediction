@@ -249,6 +249,7 @@ SELECT
         END *
         CASE
           WHEN mp.home_score = m.home_score AND mp.away_score = m.away_score THEN 3
+          WHEN (mp.home_score - mp.away_score) = (m.home_score - m.away_score) THEN 2
           WHEN SIGN(mp.home_score - mp.away_score) = SIGN(m.home_score - m.away_score) THEN 1
           ELSE 0
         END
@@ -259,6 +260,7 @@ SELECT
     CASE
       WHEN m.status <> 'finished' OR mp.id IS NULL THEN 0
       WHEN mp.home_score = m.home_score AND mp.away_score = m.away_score THEN 3
+      WHEN (mp.home_score - mp.away_score) = (m.home_score - m.away_score) THEN 2
       WHEN SIGN(mp.home_score - mp.away_score) = SIGN(m.home_score - m.away_score) THEN 1
       ELSE 0
     END
@@ -284,6 +286,7 @@ SELECT
         END *
         CASE
           WHEN mp.home_score = m.home_score AND mp.away_score = m.away_score THEN 3
+          WHEN (mp.home_score - mp.away_score) = (m.home_score - m.away_score) THEN 2
           WHEN SIGN(mp.home_score - mp.away_score) = SIGN(m.home_score - m.away_score) THEN 1
           ELSE 0
         END

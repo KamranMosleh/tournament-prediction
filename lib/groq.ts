@@ -96,15 +96,15 @@ Respond ONLY with a valid JSON object — no markdown, no explanation, nothing e
   "roasts": [
     {
       "player_name": "<exact name from the list above>",
-      "roast": "<One playful sentence, max 25 words. Mention their predicted score vs actual. Warm pub-banter tone, never cruel or offensive.>"
+      "roast": "<One creative roast sentence, max 30 words. Mention their predicted score vs actual. Sharp football pub-banter tone; a little cruel is fine, but keep it about the pick.>"
     }
   ]
 }
 
 Rules:
 - Include every player in roasts, same order as the list above
-- Players who did not predict should get a gentle ribbing about not showing up
-- Tone: friendly football pub banter — fun, never mean or personal
+- Players who did not predict should get mocked for not showing up
+- Tone: creative, savage football pub banter — mean is allowed, but do not attack real personal traits or protected characteristics
 - Do NOT output any text outside the JSON object`
 }
 

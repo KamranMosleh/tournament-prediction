@@ -193,6 +193,7 @@ export function MatchList({
                 playerId={playerId}
                 recap={recapMap.get(match.id)}
                 reveal={reveals.get(match.id)}
+                tournamentMatches={matches}
                 readOnly={readOnly}
                 scoringMode={scoringMode}
               />
@@ -212,13 +213,13 @@ export function MatchList({
 
               {/* Group sub-sections */}
               {stage === 'group'
-                ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} />
+                ? <GroupStageSection matches={stageMatches} allMatches={matches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} />
                 : (
                   <div className="flex flex-col gap-3">
                     {[...stageMatches]
                       .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                       .map(m => (
-                        <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} scoringMode={scoringMode} />
+                        <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} tournamentMatches={matches} readOnly={readOnly} scoringMode={scoringMode} />
                       ))}
                   </div>
                 )
@@ -233,12 +234,13 @@ export function MatchList({
 
 function GroupStageSection({
   matches,
+  allMatches,
   playerId,
   recapMap,
   revealMap,
   readOnly = false,
   scoringMode = 'multiplied',
-}: Props & { recapMap: Map<string, MatchRecap>; revealMap: Map<string, MatchRevealData> }) {
+}: Props & { allMatches: MatchWithPrediction[]; recapMap: Map<string, MatchRecap>; revealMap: Map<string, MatchRevealData> }) {
   const byGroup = new Map<string, MatchWithPrediction[]>()
   for (const m of matches) {
     const g = m.group_name ?? 'TBD'
@@ -266,6 +268,7 @@ function GroupStageSection({
                   playerId={playerId}
                   recap={recapMap.get(m.id)}
                   reveal={revealMap.get(m.id)}
+                  tournamentMatches={allMatches}
                   readOnly={readOnly}
                   scoringMode={scoringMode}
                 />

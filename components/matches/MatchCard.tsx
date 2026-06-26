@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { Check, Loader2, MapPin, Sparkles } from 'lucide-react'
-import type { MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
+import type { Match, MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
 import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
@@ -15,6 +15,7 @@ interface Props {
   playerId: string
   recap?: MatchRecap | null
   reveal?: MatchRevealData
+  tournamentMatches?: Match[]
   readOnly?: boolean
   scoringMode?: ScoringMode
 }
@@ -27,15 +28,26 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, recap, reveal, readOnly = false, scoringMode = 'multiplied' }: Props) {
+export function MatchCard({
+  match,
+  playerId,
+  recap,
+  reveal,
+  tournamentMatches = [],
+  readOnly = false,
+  scoringMode = 'multiplied',
+}: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [insightExpanded, setInsightExpanded] = useState(false)
 
   const isLocked = match.status !== 'open' || readOnly
   const { date, time } = formatKickoff(match.kickoff_time)
   const countdown = timeUntil(match.kickoff_time)
   const diff = match.ai_difficulty ? DIFFICULTY_CONFIG[match.ai_difficulty] : null
+  const homeRecentResults = getRecentTeamResults(tournamentMatches, match.home_team, match.id)
+  const awayRecentResults = getRecentTeamResults(tournamentMatches, match.away_team, match.id)
 
   // Points earned on finished match
   let pointsEarned: number | null = null
@@ -121,10 +133,36 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       {/* AI insight */}
       {match.ai_insight && match.status === 'open' && (
         <div className="px-4 pb-3">
-          <div className="flex gap-2 px-3 py-2 rounded-lg text-xs leading-relaxed italic"
-            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', borderLeft: '2px solid var(--border)' }}>
-            <Sparkles size={11} className="shrink-0 mt-0.5" style={{ color: 'var(--accent)' }} />
-            <span>{match.ai_insight}</span>
+          <div
+            className="rounded-lg border"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border-subtle)' }}
+          >
+            <button
+              type="button"
+              onClick={() => setInsightExpanded(v => !v)}
+              className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <Sparkles size={11} className="shrink-0" style={{ color: 'var(--accent)' }} />
+                <span className="truncate">Prematch Insight</span>
+              </span>
+              <span className="shrink-0" style={{ color: 'var(--text-subtle)' }}>
+                {insightExpanded ? '▲' : '▼'}
+              </span>
+            </button>
+
+            {insightExpanded && (
+              <div className="px-3 pb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <RecentResultsTable
+                  homeTeam={match.home_team}
+                  awayTeam={match.away_team}
+                  homeResults={homeRecentResults}
+                  awayResults={awayRecentResults}
+                />
+                <p className="mt-3 leading-relaxed italic">{match.ai_insight}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -160,6 +198,118 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       {/* Per-player roast recap (shown after match finishes, once generated) */}
       {recap && match.status === 'finished' && (
         <MatchRecapCard recap={recap} />
+      )}
+    </div>
+  )
+}
+
+type RecentTeamResult = {
+  id: string
+  badge: 'W' | 'D' | 'L'
+  opponent: string
+  score: string
+}
+
+function getRecentTeamResults(matches: Match[], team: string, currentMatchId: string): RecentTeamResult[] {
+  return matches
+    .filter(m =>
+      m.id !== currentMatchId &&
+      m.status === 'finished' &&
+      m.home_score !== null &&
+      m.away_score !== null &&
+      (m.home_team === team || m.away_team === team)
+    )
+    .sort((a, b) => new Date(b.kickoff_time).getTime() - new Date(a.kickoff_time).getTime())
+    .slice(0, 3)
+    .map(m => {
+      const isHome = m.home_team === team
+      const teamScore = isHome ? m.home_score! : m.away_score!
+      const opponentScore = isHome ? m.away_score! : m.home_score!
+      const opponent = isHome ? m.away_team : m.home_team
+      const badge = teamScore === opponentScore ? 'D' : teamScore > opponentScore ? 'W' : 'L'
+
+      return {
+        id: m.id,
+        badge,
+        opponent,
+        score: `${teamScore}-${opponentScore}`,
+      }
+    })
+}
+
+function RecentResultsTable({
+  homeTeam,
+  awayTeam,
+  homeResults,
+  awayResults,
+}: {
+  homeTeam: string
+  awayTeam: string
+  homeResults: RecentTeamResult[]
+  awayResults: RecentTeamResult[]
+}) {
+  const rowCount = Math.max(homeResults.length, awayResults.length, 1)
+
+  return (
+    <div className="overflow-hidden rounded-md border" style={{ borderColor: 'var(--border-subtle)' }}>
+      <div className="grid grid-cols-2 text-[11px] font-semibold" style={{ color: 'var(--text)' }}>
+        <div className="px-2 py-1.5 min-w-0 truncate" style={{ borderRight: '1px solid var(--border-subtle)' }}>
+          {homeTeam}
+        </div>
+        <div className="px-2 py-1.5 min-w-0 truncate">{awayTeam}</div>
+      </div>
+      <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
+        {Array.from({ length: rowCount }).map((_, index) => (
+          <div
+            key={index}
+            className="grid grid-cols-2"
+            style={index > 0 ? { borderTop: '1px solid var(--border-subtle)' } : undefined}
+          >
+            <RecentResultCell result={homeResults[index]} />
+            <RecentResultCell result={awayResults[index]} withDivider />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function RecentResultCell({ result, withDivider = false }: { result?: RecentTeamResult; withDivider?: boolean }) {
+  return (
+    <div
+      className="flex min-w-0 items-center gap-1.5 px-2 py-1.5"
+      style={withDivider ? { borderLeft: '1px solid var(--border-subtle)' } : undefined}
+    >
+      {result ? (
+        <>
+          <span
+            className="shrink-0 rounded px-1 text-[10px] font-bold"
+            style={{
+              background:
+                result.badge === 'W'
+                  ? 'var(--accent-glow)'
+                  : result.badge === 'D'
+                    ? 'rgba(210,153,34,0.12)'
+                    : 'rgba(248,81,73,0.1)',
+              color:
+                result.badge === 'W'
+                  ? 'var(--accent)'
+                  : result.badge === 'D'
+                    ? 'var(--gold)'
+                    : 'var(--red)',
+            }}
+          >
+            {result.badge}
+          </span>
+          <span className="shrink-0 tabular-nums" style={{ color: 'var(--text)' }}>
+            {result.score}
+          </span>
+          <span className="min-w-0 truncate" title={result.opponent}>
+            vs {result.opponent}
+          </span>
+        </>
+      ) : (
+        <span style={{ color: 'var(--text-subtle)' }}>No tournament results yet</span>
       )}
     </div>
   )

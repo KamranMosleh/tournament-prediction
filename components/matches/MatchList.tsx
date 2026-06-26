@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { CalendarClock, Eye, EyeOff, History, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
 import { isWithinLastHours, stageLabel, stageOrder } from '@/lib/utils'
-import type { MatchWithPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
+import type { MatchWithPrediction, MatchPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
 
 interface Props {
   matches: MatchWithPrediction[]
@@ -18,6 +18,7 @@ interface Props {
   syncMessage?: string | null
   readOnly?: boolean
   scoringMode?: ScoringMode
+  onPredictionSaved?: (prediction: MatchPrediction) => void
 }
 
 export function MatchList({
@@ -32,6 +33,7 @@ export function MatchList({
   syncMessage = null,
   readOnly = false,
   scoringMode = 'multiplied',
+  onPredictionSaved,
 }: Props) {
   const [sortByKickoff, setSortByKickoff] = useState(true)
   const [showFinished, setShowFinished] = useState(false)
@@ -195,6 +197,7 @@ export function MatchList({
                 reveal={reveals.get(match.id)}
                 readOnly={readOnly}
                 scoringMode={scoringMode}
+                onPredictionSaved={onPredictionSaved}
               />
             ))}
           </div>
@@ -212,13 +215,13 @@ export function MatchList({
 
               {/* Group sub-sections */}
               {stage === 'group'
-                ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} />
+                ? <GroupStageSection matches={stageMatches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} onPredictionSaved={onPredictionSaved} />
                 : (
                   <div className="flex flex-col gap-3">
                     {[...stageMatches]
                       .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                       .map(m => (
-                        <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} scoringMode={scoringMode} />
+                        <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} scoringMode={scoringMode} onPredictionSaved={onPredictionSaved} />
                       ))}
                   </div>
                 )
@@ -238,6 +241,7 @@ function GroupStageSection({
   revealMap,
   readOnly = false,
   scoringMode = 'multiplied',
+  onPredictionSaved,
 }: Props & { recapMap: Map<string, MatchRecap>; revealMap: Map<string, MatchRevealData> }) {
   const byGroup = new Map<string, MatchWithPrediction[]>()
   for (const m of matches) {
@@ -268,6 +272,7 @@ function GroupStageSection({
                   reveal={revealMap.get(m.id)}
                   readOnly={readOnly}
                   scoringMode={scoringMode}
+                  onPredictionSaved={onPredictionSaved}
                 />
               ))}
           </div>

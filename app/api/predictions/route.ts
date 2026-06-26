@@ -5,11 +5,29 @@ import { getVerifiedPlayer } from '@/lib/auth'
 export async function POST(req: NextRequest) {
   try {
     const { match_id, player_id, home_score, away_score } = await req.json()
+    const homeScore = Number(home_score)
+    const awayScore = Number(away_score)
 
-    if (!match_id || !player_id || home_score === undefined || away_score === undefined) {
+    if (
+      !match_id ||
+      !player_id ||
+      home_score === undefined ||
+      away_score === undefined ||
+      home_score === null ||
+      away_score === null ||
+      home_score === '' ||
+      away_score === ''
+    ) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
-    if (home_score < 0 || away_score < 0 || home_score > 20 || away_score > 20) {
+    if (
+      !Number.isInteger(homeScore) ||
+      !Number.isInteger(awayScore) ||
+      homeScore < 0 ||
+      awayScore < 0 ||
+      homeScore > 20 ||
+      awayScore > 20
+    ) {
       return NextResponse.json({ error: 'Invalid scores' }, { status: 400 })
     }
 
@@ -49,19 +67,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Predictions are locked for this match' }, { status: 409 })
     }
 
-    // Upsert prediction
-    const { data, error } = await supabase
+    // Upsert prediction, then read it back before reporting success.
+    const { error } = await supabase
       .from('match_predictions')
       .upsert(
-        { player_id, match_id, home_score, away_score, submitted_at: new Date().toISOString() },
+        { player_id, match_id, home_score: homeScore, away_score: awayScore, submitted_at: new Date().toISOString() },
         { onConflict: 'player_id,match_id' }
       )
-      .select()
-      .single()
 
     if (error) return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
 
-    return NextResponse.json({ prediction: data })
+    const { data: persisted, error: verifyError } = await supabase
+      .from('match_predictions')
+      .select('*')
+      .eq('player_id', player_id)
+      .eq('match_id', match_id)
+      .single()
+
+    if (verifyError || !persisted) {
+      return NextResponse.json({ error: 'Failed to verify saved prediction' }, { status: 500 })
+    }
+
+    if (persisted.home_score !== homeScore || persisted.away_score !== awayScore) {
+      return NextResponse.json({ error: 'Saved prediction verification failed' }, { status: 409 })
+    }
+
+    return NextResponse.json({ prediction: persisted, verified: true })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

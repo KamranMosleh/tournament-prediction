@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Archive, BarChart2, Calendar, Trophy, Shield, Send, Home, Eye } from 'lucide-react'
 import type {
@@ -118,6 +118,17 @@ export function LeagueHub({
     }
     return map
   }, [matches, players, predictionsByMatch, league.scoring_mode])
+
+  const handlePredictionSaved = useCallback((prediction: MatchPrediction) => {
+    setPredictions(prev => {
+      const index = prev.findIndex(p => p.player_id === prediction.player_id && p.match_id === prediction.match_id)
+      if (index === -1) return [...prev, prediction]
+
+      const next = [...prev]
+      next[index] = prediction
+      return next
+    })
+  }, [])
 
   // Not joined
   if (!currentPlayer) {
@@ -284,6 +295,7 @@ export function LeagueHub({
             syncMessage={syncMessage}
             readOnly={isArchived}
             scoringMode={league.scoring_mode}
+            onPredictionSaved={handlePredictionSaved}
           />
         )}
         {tab === 'reveal' && (

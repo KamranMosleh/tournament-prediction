@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Check, Loader2, MapPin, Sparkles } from 'lucide-react'
-import type { MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
+import type { MatchWithPrediction, MatchPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
 import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
@@ -17,9 +17,15 @@ interface Props {
   reveal?: MatchRevealData
   readOnly?: boolean
   scoringMode?: ScoringMode
+  onPredictionSaved?: (prediction: MatchPrediction) => void
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+type SaveResponse = {
+  prediction?: MatchPrediction
+  verified?: boolean
+  error?: string
+}
 
 const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg: string }> = {
   Easy:          { label: 'Easy to call',   color: 'var(--accent)', bg: 'var(--accent-glow)' },
@@ -27,15 +33,19 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, recap, reveal, readOnly = false, scoringMode = 'multiplied' }: Props) {
+export function MatchCard({ match, playerId, recap, reveal, readOnly = false, scoringMode = 'multiplied', onPredictionSaved }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [lastVerifiedPrediction, setLastVerifiedPrediction] = useState<MatchPrediction | null>(null)
+  const saveRequestRef = useRef(0)
 
   const isLocked = match.status !== 'open' || readOnly
   const { date, time } = formatKickoff(match.kickoff_time)
   const countdown = timeUntil(match.kickoff_time)
   const diff = match.ai_difficulty ? DIFFICULTY_CONFIG[match.ai_difficulty] : null
+  const savedAtLabel = match.prediction ? formatSavedAt(match.prediction.submitted_at) : null
+  const lastVerifiedSavedAtLabel = lastVerifiedPrediction ? formatSavedAt(lastVerifiedPrediction.submitted_at) : null
 
   // Points earned on finished match
   let pointsEarned: number | null = null
@@ -64,17 +74,56 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
 
   const save = useCallback(async (home: string, away: string) => {
     if (home === '' || away === '' || isLocked) return
+    const homeScore = Number(home)
+    const awayScore = Number(away)
+
+    if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) {
+      setSaveState('error')
+      return
+    }
+
+    if (
+      match.prediction &&
+      homeScore === match.prediction.home_score &&
+      awayScore === match.prediction.away_score
+    ) {
+      return
+    }
+
+    const requestId = saveRequestRef.current + 1
+    saveRequestRef.current = requestId
     setSaveState('saving')
     try {
       const res = await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match_id: match.id, player_id: playerId, home_score: Number(home), away_score: Number(away) }),
+        body: JSON.stringify({ match_id: match.id, player_id: playerId, home_score: homeScore, away_score: awayScore }),
       })
-      setSaveState(res.ok ? 'saved' : 'error')
-      if (res.ok) setTimeout(() => setSaveState('idle'), 2500)
-    } catch { setSaveState('error') }
-  }, [match.id, playerId, isLocked])
+      const data = await res.json().catch(() => ({})) as SaveResponse
+
+      if (requestId !== saveRequestRef.current) return
+
+      if (
+        !res.ok ||
+        !data.verified ||
+        !data.prediction ||
+        data.prediction.home_score !== homeScore ||
+        data.prediction.away_score !== awayScore
+      ) {
+        setSaveState('error')
+        return
+      }
+
+      onPredictionSaved?.(data.prediction)
+      setLastVerifiedPrediction(data.prediction)
+      setSaveState('saved')
+      setTimeout(() => {
+        if (saveRequestRef.current === requestId) setSaveState('idle')
+      }, 2500)
+    } catch {
+      if (requestId === saveRequestRef.current) setSaveState('error')
+    }
+  }, [match.id, match.prediction, playerId, isLocked, onPredictionSaved])
 
   return (
     <div className="rounded-xl overflow-hidden"
@@ -135,11 +184,12 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
           style={{ borderTop: '1px solid var(--border-subtle)' }}>
           <div className="text-sm flex items-center gap-1">
             {saveState === 'saving' && <><Loader2 size={13} className="animate-spin" style={{ color: 'var(--text-muted)' }} /><span style={{ color: 'var(--text-muted)' }}>Saving…</span></>}
-            {saveState === 'saved'  && <><Check size={13} style={{ color: 'var(--accent)' }} /><span style={{ color: 'var(--accent)' }}>Saved</span></>}
+            {saveState === 'saved'  && <><Check size={13} style={{ color: 'var(--accent)' }} /><span style={{ color: 'var(--accent)' }}>{lastVerifiedSavedAtLabel ? `Saved ${lastVerifiedSavedAtLabel}` : 'Saved'}</span></>}
             {saveState === 'error'  && <span style={{ color: 'var(--red)' }}>Save failed</span>}
             {saveState === 'idle' && match.prediction && (
               <span style={{ color: 'var(--text-subtle)' }}>
                 Your pick: {match.prediction.home_score}–{match.prediction.away_score}
+                {savedAtLabel ? ` · Saved ${savedAtLabel}` : ''}
               </span>
             )}
           </div>
@@ -163,6 +213,18 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       )}
     </div>
   )
+}
+
+function formatSavedAt(iso: string): string | null {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {

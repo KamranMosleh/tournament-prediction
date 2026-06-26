@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { Check, Loader2, MapPin, Sparkles } from 'lucide-react'
-import type { MatchWithPrediction, MatchPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
+import type { Match, MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
 import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
@@ -15,6 +15,7 @@ interface Props {
   playerId: string
   recap?: MatchRecap | null
   reveal?: MatchRevealData
+  tournamentMatches?: Match[]
   readOnly?: boolean
   scoringMode?: ScoringMode
   onPredictionSaved?: (prediction: MatchPrediction) => void
@@ -33,19 +34,15 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, recap, reveal, readOnly = false, scoringMode = 'multiplied', onPredictionSaved }: Props) {
+export function MatchCard({ match, playerId, recap, reveal, readOnly = false, scoringMode = 'multiplied' }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
-  const [lastVerifiedPrediction, setLastVerifiedPrediction] = useState<MatchPrediction | null>(null)
-  const saveRequestRef = useRef(0)
 
   const isLocked = match.status !== 'open' || readOnly
   const { date, time } = formatKickoff(match.kickoff_time)
   const countdown = timeUntil(match.kickoff_time)
   const diff = match.ai_difficulty ? DIFFICULTY_CONFIG[match.ai_difficulty] : null
-  const savedAtLabel = match.prediction ? formatSavedAt(match.prediction.submitted_at) : null
-  const lastVerifiedSavedAtLabel = lastVerifiedPrediction ? formatSavedAt(lastVerifiedPrediction.submitted_at) : null
 
   // Points earned on finished match
   let pointsEarned: number | null = null
@@ -170,10 +167,36 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       {/* AI insight */}
       {match.ai_insight && match.status === 'open' && (
         <div className="px-4 pb-3">
-          <div className="flex gap-2 px-3 py-2 rounded-lg text-xs leading-relaxed italic"
-            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', borderLeft: '2px solid var(--border)' }}>
-            <Sparkles size={11} className="shrink-0 mt-0.5" style={{ color: 'var(--accent)' }} />
-            <span>{match.ai_insight}</span>
+          <div
+            className="rounded-lg border"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border-subtle)' }}
+          >
+            <button
+              type="button"
+              onClick={() => setInsightExpanded(v => !v)}
+              className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <Sparkles size={11} className="shrink-0" style={{ color: 'var(--accent)' }} />
+                <span className="truncate">Prematch Insight</span>
+              </span>
+              <span className="shrink-0" style={{ color: 'var(--text-subtle)' }}>
+                {insightExpanded ? '▲' : '▼'}
+              </span>
+            </button>
+
+            {insightExpanded && (
+              <div className="px-3 pb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <RecentResultsTable
+                  homeTeam={match.home_team}
+                  awayTeam={match.away_team}
+                  homeResults={homeRecentResults}
+                  awayResults={awayRecentResults}
+                />
+                <p className="mt-3 leading-relaxed italic">{match.ai_insight}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -213,18 +236,6 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       )}
     </div>
   )
-}
-
-function formatSavedAt(iso: string): string | null {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return null
-
-  return date.toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {

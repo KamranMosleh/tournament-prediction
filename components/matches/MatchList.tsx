@@ -216,13 +216,23 @@ export function MatchList({
 
               {/* Group sub-sections */}
               {stage === 'group'
-                ? <GroupStageSection matches={stageMatches} allMatches={matches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} />
+                ? <GroupStageSection matches={stageMatches} allMatches={matches} playerId={playerId} recapMap={recapMap} revealMap={reveals} readOnly={readOnly} scoringMode={scoringMode} onPredictionSaved={onPredictionSaved} />
                 : (
                   <div className="flex flex-col gap-3">
                     {[...stageMatches]
                       .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                       .map(m => (
-                        <MatchCard key={m.id} match={m} playerId={playerId} recap={recapMap.get(m.id)} reveal={reveals.get(m.id)} readOnly={readOnly} scoringMode={scoringMode} />
+                        <MatchCard
+                          key={m.id}
+                          match={m}
+                          playerId={playerId}
+                          recap={recapMap.get(m.id)}
+                          reveal={reveals.get(m.id)}
+                          tournamentMatches={matches}
+                          readOnly={readOnly}
+                          scoringMode={scoringMode}
+                          onPredictionSaved={onPredictionSaved}
+                        />
                       ))}
                   </div>
                 )
@@ -243,7 +253,17 @@ function GroupStageSection({
   revealMap,
   readOnly = false,
   scoringMode = 'multiplied',
-}: Props & { recapMap: Map<string, MatchRecap>; revealMap: Map<string, MatchRevealData> }) {
+  onPredictionSaved,
+}: {
+  matches: MatchWithPrediction[]
+  allMatches: MatchWithPrediction[]
+  playerId: string
+  recapMap: Map<string, MatchRecap>
+  revealMap: Map<string, MatchRevealData>
+  readOnly?: boolean
+  scoringMode?: ScoringMode
+  onPredictionSaved?: (prediction: MatchPrediction) => void
+}) {
   const byGroup = new Map<string, MatchWithPrediction[]>()
   for (const m of matches) {
     const g = m.group_name ?? 'TBD'

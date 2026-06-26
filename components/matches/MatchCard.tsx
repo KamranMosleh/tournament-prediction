@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { Check, Loader2, MapPin, Sparkles } from 'lucide-react'
-import type { Match, MatchWithPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
+import type { Match, MatchWithPrediction, MatchPrediction, AIDifficulty, MatchRecap, MatchRevealData, ScoringMode } from '@/types'
 import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
@@ -27,6 +27,13 @@ type SaveResponse = {
   verified?: boolean
   error?: string
 }
+type RecentResult = {
+  id: string
+  date: string
+  opponent: string
+  score: string
+  result: 'W' | 'D' | 'L'
+}
 
 const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg: string }> = {
   Easy:          { label: 'Easy to call',   color: 'var(--accent)', bg: 'var(--accent-glow)' },
@@ -34,15 +41,31 @@ const DIFFICULTY_CONFIG: Record<AIDifficulty, { label: string; color: string; bg
   Unpredictable: { label: 'Unpredictable',  color: 'var(--red)',    bg: 'rgba(248,81,73,0.1)' },
 }
 
-export function MatchCard({ match, playerId, recap, reveal, readOnly = false, scoringMode = 'multiplied' }: Props) {
+export function MatchCard({
+  match,
+  playerId,
+  recap,
+  reveal,
+  tournamentMatches = [],
+  readOnly = false,
+  scoringMode = 'multiplied',
+  onPredictionSaved,
+}: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [lastVerifiedPrediction, setLastVerifiedPrediction] = useState<MatchPrediction | null>(null)
+  const [insightExpanded, setInsightExpanded] = useState(false)
+  const saveRequestRef = useRef(0)
 
   const isLocked = match.status !== 'open' || readOnly
   const { date, time } = formatKickoff(match.kickoff_time)
   const countdown = timeUntil(match.kickoff_time)
   const diff = match.ai_difficulty ? DIFFICULTY_CONFIG[match.ai_difficulty] : null
+  const savedAtLabel = match.prediction ? formatSavedAt(match.prediction.submitted_at) : null
+  const lastVerifiedSavedAtLabel = lastVerifiedPrediction ? formatSavedAt(lastVerifiedPrediction.submitted_at) : null
+  const homeRecentResults = recentResultsForTeam(tournamentMatches, match.home_team, match.kickoff_time, match.id)
+  const awayRecentResults = recentResultsForTeam(tournamentMatches, match.away_team, match.kickoff_time, match.id)
 
   // Points earned on finished match
   let pointsEarned: number | null = null
@@ -236,6 +259,114 @@ export function MatchCard({ match, playerId, recap, reveal, readOnly = false, sc
       )}
     </div>
   )
+}
+
+function RecentResultsTable({
+  homeTeam,
+  awayTeam,
+  homeResults,
+  awayResults,
+}: {
+  homeTeam: string
+  awayTeam: string
+  homeResults: RecentResult[]
+  awayResults: RecentResult[]
+}) {
+  if (homeResults.length === 0 && awayResults.length === 0) {
+    return (
+      <p className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+        Recent tournament results will appear here once these teams have played.
+      </p>
+    )
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <RecentResultColumn team={homeTeam} results={homeResults} />
+      <RecentResultColumn team={awayTeam} results={awayResults} />
+    </div>
+  )
+}
+
+function RecentResultColumn({ team, results }: { team: string; results: RecentResult[] }) {
+  return (
+    <div className="min-w-0">
+      <p className="mb-1.5 font-semibold" style={{ color: 'var(--text)' }}>
+        <CountryName name={team} />
+      </p>
+      {results.length === 0 ? (
+        <p style={{ color: 'var(--text-subtle)' }}>No recent results</p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {results.map(result => (
+            <div key={result.id} className="flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate" style={{ color: 'var(--text-muted)' }}>
+                {result.date} vs <CountryName name={result.opponent} />
+              </span>
+              <span className="shrink-0 tabular-nums" style={{ color: resultColor(result.result) }}>
+                {result.result} {result.score}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function recentResultsForTeam(
+  matches: Match[],
+  team: string,
+  beforeKickoff: string,
+  currentMatchId: string,
+  limit = 3
+): RecentResult[] {
+  const beforeTime = new Date(beforeKickoff).getTime()
+
+  return matches
+    .filter(candidate =>
+      candidate.id !== currentMatchId &&
+      candidate.status === 'finished' &&
+      candidate.home_score !== null &&
+      candidate.away_score !== null &&
+      new Date(candidate.kickoff_time).getTime() < beforeTime &&
+      (candidate.home_team === team || candidate.away_team === team)
+    )
+    .sort((a, b) => new Date(b.kickoff_time).getTime() - new Date(a.kickoff_time).getTime())
+    .slice(0, limit)
+    .map(candidate => {
+      const isHome = candidate.home_team === team
+      const ownScore = isHome ? candidate.home_score! : candidate.away_score!
+      const opponentScore = isHome ? candidate.away_score! : candidate.home_score!
+      const opponent = isHome ? candidate.away_team : candidate.home_team
+      const { date } = formatKickoff(candidate.kickoff_time)
+
+      return {
+        id: candidate.id,
+        date,
+        opponent,
+        score: `${ownScore}-${opponentScore}`,
+        result: ownScore > opponentScore ? 'W' : ownScore < opponentScore ? 'L' : 'D',
+      }
+    })
+}
+
+function resultColor(result: RecentResult['result']): string {
+  if (result === 'W') return 'var(--accent)'
+  if (result === 'L') return 'var(--red)'
+  return 'var(--gold)'
+}
+
+function formatSavedAt(iso: string): string | null {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {

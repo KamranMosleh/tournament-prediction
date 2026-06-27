@@ -13,6 +13,11 @@ export const BASE_MATCH_POINTS = {
   wrong: 0,
 } as const
 
+export const PENALTY_BONUS_POINTS: Readonly<Record<ScoringMode, number>> = {
+  flat: 1,
+  multiplied: 2,
+}
+
 export const STAGE_MULTIPLIERS: Readonly<Record<MatchStage, number>> = {
   group: 1,
   round_of_16: 2,
@@ -22,24 +27,79 @@ export const STAGE_MULTIPLIERS: Readonly<Record<MatchStage, number>> = {
   final: 5,
 }
 
+export type MatchPointKind = keyof typeof BASE_MATCH_POINTS
+
+export interface PredictionPointsResult {
+  normal_points: number
+  penalty_bonus: number
+  total_points: number
+  kind: MatchPointKind
+}
+
+function matchPointKind(
+  predHome: number,
+  predAway: number,
+  realHome: number,
+  realAway: number
+): MatchPointKind {
+  const predictedDifference = predHome - predAway
+  const realDifference = realHome - realAway
+
+  if (predHome === realHome && predAway === realAway) return 'exact'
+  if (predictedDifference === realDifference) return 'difference'
+  if (Math.sign(predictedDifference) === Math.sign(realDifference)) return 'outcome'
+  return 'wrong'
+}
+
 export function matchPoints(
   predHome: number, predAway: number,
   realHome: number, realAway: number,
   stage: MatchStage,
   mode: ScoringMode = 'multiplied'
 ): number {
-  let base: number = BASE_MATCH_POINTS.wrong
-  const predictedDifference = predHome - predAway
-  const realDifference = realHome - realAway
-
-  if (predHome === realHome && predAway === realAway) {
-    base = BASE_MATCH_POINTS.exact
-  } else if (predictedDifference === realDifference) {
-    base = BASE_MATCH_POINTS.difference
-  } else if (Math.sign(predictedDifference) === Math.sign(realDifference)) {
-    base = BASE_MATCH_POINTS.outcome
-  }
+  const base = BASE_MATCH_POINTS[matchPointKind(predHome, predAway, realHome, realAway)]
   return mode === 'multiplied' ? base * STAGE_MULTIPLIERS[stage] : base
+}
+
+export function predictionPoints({
+  predHome,
+  predAway,
+  realHome,
+  realAway,
+  stage,
+  mode = 'multiplied',
+  predictedPenaltyWinner,
+  resultWinnerTeam,
+  wentToPenalties,
+}: {
+  predHome: number
+  predAway: number
+  realHome: number
+  realAway: number
+  stage: MatchStage
+  mode?: ScoringMode
+  predictedPenaltyWinner?: string | null
+  resultWinnerTeam?: string | null
+  wentToPenalties?: boolean | null
+}): PredictionPointsResult {
+  const kind = matchPointKind(predHome, predAway, realHome, realAway)
+  const normalPoints = matchPoints(predHome, predAway, realHome, realAway, stage, mode)
+  const penaltyBonus =
+    stage !== 'group' &&
+    predHome === predAway &&
+    wentToPenalties === true &&
+    !!predictedPenaltyWinner?.trim() &&
+    !!resultWinnerTeam?.trim() &&
+    footballNamesMatch(predictedPenaltyWinner, resultWinnerTeam)
+      ? PENALTY_BONUS_POINTS[mode]
+      : 0
+
+  return {
+    normal_points: normalPoints,
+    penalty_bonus: penaltyBonus,
+    total_points: normalPoints + penaltyBonus,
+    kind,
+  }
 }
 
 export function normalizeFootballName(value: string): string {
@@ -110,17 +170,30 @@ export function computeLeaderboard({
       const maxPoints = scoringMode === 'multiplied'
         ? STAGE_MULTIPLIERS[match.stage] * BASE_MATCH_POINTS.exact
         : BASE_MATCH_POINTS.exact
+      const maxPenaltyBonus = match.went_to_penalties === true && match.stage !== 'group'
+        ? PENALTY_BONUS_POINTS[scoringMode]
+        : 0
       const isAfterJoin = player.joined_match_day == null ||
         match.match_day == null ||
         match.match_day >= player.joined_match_day
 
-      if (isAfterJoin) formMaxPoints += maxPoints
+      if (isAfterJoin) formMaxPoints += maxPoints + maxPenaltyBonus
 
       const pred = predictions.find(p => p.player_id === player.id && p.match_id === match.id)
       if (!pred) continue
 
       predictionsSubmitted++
-      const pts = matchPoints(pred.home_score, pred.away_score, match.home_score!, match.away_score!, match.stage, scoringMode)
+      const pts = predictionPoints({
+        predHome: pred.home_score,
+        predAway: pred.away_score,
+        realHome: match.home_score!,
+        realAway: match.away_score!,
+        stage: match.stage,
+        mode: scoringMode,
+        predictedPenaltyWinner: pred.penalty_winner_team,
+        resultWinnerTeam: match.result_winner_team,
+        wentToPenalties: match.went_to_penalties,
+      }).total_points
       totalMatchPoints += pts
       if (pred.home_score === match.home_score && pred.away_score === match.away_score) exactScores++
       if (isAfterJoin) formPoints += pts

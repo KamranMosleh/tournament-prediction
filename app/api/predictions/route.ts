@@ -4,9 +4,10 @@ import { getVerifiedPlayer } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
-    const { match_id, player_id, home_score, away_score } = await req.json()
+    const { match_id, player_id, home_score, away_score, penalty_winner_team } = await req.json()
     const homeScore = Number(home_score)
     const awayScore = Number(away_score)
+    const penaltyWinnerInput = typeof penalty_winner_team === 'string' ? penalty_winner_team.trim() : ''
 
     if (
       !match_id ||
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
     // Check match is still open
     const { data: match } = await supabase
       .from('matches')
-      .select('status, tournament_code, tournament_season')
+      .select('status, tournament_code, tournament_season, stage, home_team, away_team')
       .eq('id', match_id)
       .single()
 
@@ -66,12 +67,29 @@ export async function POST(req: NextRequest) {
     if (match.status !== 'open') {
       return NextResponse.json({ error: 'Predictions are locked for this match' }, { status: 409 })
     }
+    const penaltyEligible = match.stage !== 'group'
+    const predictedDraw = homeScore === awayScore
+    let penaltyWinnerTeam: string | null = null
+
+    if (penaltyEligible && predictedDraw) {
+      if (penaltyWinnerInput !== match.home_team && penaltyWinnerInput !== match.away_team) {
+        return NextResponse.json({ error: 'Select the penalty shootout winner' }, { status: 400 })
+      }
+      penaltyWinnerTeam = penaltyWinnerInput
+    }
 
     // Upsert prediction, then read it back before reporting success.
     const { error } = await supabase
       .from('match_predictions')
       .upsert(
-        { player_id, match_id, home_score: homeScore, away_score: awayScore, submitted_at: new Date().toISOString() },
+        {
+          player_id,
+          match_id,
+          home_score: homeScore,
+          away_score: awayScore,
+          penalty_winner_team: penaltyWinnerTeam,
+          submitted_at: new Date().toISOString(),
+        },
         { onConflict: 'player_id,match_id' }
       )
 
@@ -88,7 +106,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to verify saved prediction' }, { status: 500 })
     }
 
-    if (persisted.home_score !== homeScore || persisted.away_score !== awayScore) {
+    if (
+      persisted.home_score !== homeScore ||
+      persisted.away_score !== awayScore ||
+      (persisted.penalty_winner_team ?? null) !== penaltyWinnerTeam
+    ) {
       return NextResponse.json({ error: 'Saved prediction verification failed' }, { status: 409 })
     }
 

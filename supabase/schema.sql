@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS matches (
   home_score        INTEGER CHECK (home_score >= 0),
   away_score        INTEGER CHECK (away_score >= 0),
   result_winner_team TEXT,
+  went_to_penalties BOOLEAN NOT NULL DEFAULT FALSE,
   match_day         INTEGER,
   venue             TEXT,
   last_synced_at    TIMESTAMPTZ,
@@ -106,15 +107,22 @@ CREATE TABLE IF NOT EXISTS matches (
 ALTER TABLE matches
   ADD COLUMN IF NOT EXISTS result_winner_team TEXT;
 
+ALTER TABLE matches
+  ADD COLUMN IF NOT EXISTS went_to_penalties BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE TABLE IF NOT EXISTS match_predictions (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id    UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   match_id     UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
   home_score   INTEGER NOT NULL CHECK (home_score >= 0 AND home_score <= 20),
   away_score   INTEGER NOT NULL CHECK (away_score >= 0 AND away_score <= 20),
+  penalty_winner_team TEXT,
   submitted_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (player_id, match_id)
 );
+
+ALTER TABLE match_predictions
+  ADD COLUMN IF NOT EXISTS penalty_winner_team TEXT;
 
 CREATE TABLE IF NOT EXISTS tournament_predictions (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -253,16 +261,35 @@ SELECT
           WHEN SIGN(mp.home_score - mp.away_score) = SIGN(m.home_score - m.away_score) THEN 1
           ELSE 0
         END
+        +
+        CASE
+          WHEN m.stage <> 'group'
+           AND m.went_to_penalties IS TRUE
+           AND mp.home_score = mp.away_score
+           AND mp.penalty_winner_team = m.result_winner_team THEN 2
+          ELSE 0
+        END
     END
   ) AS match_points,
   -- Flat scoring (always computed for leagues using scoring_mode='flat')
   SUM(
     CASE
       WHEN m.status <> 'finished' OR mp.id IS NULL THEN 0
-      WHEN mp.home_score = m.home_score AND mp.away_score = m.away_score THEN 3
-      WHEN (mp.home_score - mp.away_score) = (m.home_score - m.away_score) THEN 2
-      WHEN SIGN(mp.home_score - mp.away_score) = SIGN(m.home_score - m.away_score) THEN 1
-      ELSE 0
+      ELSE
+        CASE
+          WHEN mp.home_score = m.home_score AND mp.away_score = m.away_score THEN 3
+          WHEN (mp.home_score - mp.away_score) = (m.home_score - m.away_score) THEN 2
+          WHEN SIGN(mp.home_score - mp.away_score) = SIGN(m.home_score - m.away_score) THEN 1
+          ELSE 0
+        END
+        +
+        CASE
+          WHEN m.stage <> 'group'
+           AND m.went_to_penalties IS TRUE
+           AND mp.home_score = mp.away_score
+           AND mp.penalty_winner_team = m.result_winner_team THEN 1
+          ELSE 0
+        END
     END
   ) AS match_points_flat,
   -- Exact score count (tie-break)
@@ -290,6 +317,14 @@ SELECT
           WHEN SIGN(mp.home_score - mp.away_score) = SIGN(m.home_score - m.away_score) THEN 1
           ELSE 0
         END
+        +
+        CASE
+          WHEN m.stage <> 'group'
+           AND m.went_to_penalties IS TRUE
+           AND mp.home_score = mp.away_score
+           AND mp.penalty_winner_team = m.result_winner_team THEN 2
+          ELSE 0
+        END
     END
   ) AS form_points,
   -- Max possible form points (denominator for form %)
@@ -302,6 +337,11 @@ SELECT
           WHEN 'group' THEN 3 WHEN 'round_of_16' THEN 6
           WHEN 'quarter_final' THEN 9 WHEN 'semi_final' THEN 12
           WHEN 'third_place' THEN 12 WHEN 'final' THEN 15 ELSE 3
+        END
+        +
+        CASE
+          WHEN m.stage <> 'group' AND m.went_to_penalties IS TRUE THEN 2
+          ELSE 0
         END
     END
   ) AS form_max_points

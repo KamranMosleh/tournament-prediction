@@ -7,8 +7,9 @@ import { formatKickoff, timeUntil } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { MatchRecapCard } from '@/components/matches/MatchRecapCard'
 import { PredictionRevealPanel } from '@/components/matches/PredictionRevealPanel'
-import { matchPoints } from '@/lib/scoring'
+import { predictionPoints, type MatchPointKind } from '@/lib/scoring'
 import { CountryName } from '@/components/ui/CountryName'
+import { formatCountryName } from '@/lib/country-flags'
 
 interface Props {
   match: MatchWithPrediction
@@ -53,6 +54,7 @@ export function MatchCard({
 }: Props) {
   const [homeVal, setHomeVal] = useState(match.prediction?.home_score?.toString() ?? '')
   const [awayVal, setAwayVal] = useState(match.prediction?.away_score?.toString() ?? '')
+  const [penaltyWinner, setPenaltyWinner] = useState(match.prediction?.penalty_winner_team ?? '')
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [lastVerifiedPrediction, setLastVerifiedPrediction] = useState<MatchPrediction | null>(null)
   const [insightExpanded, setInsightExpanded] = useState(false)
@@ -66,33 +68,39 @@ export function MatchCard({
   const lastVerifiedSavedAtLabel = lastVerifiedPrediction ? formatSavedAt(lastVerifiedPrediction.submitted_at) : null
   const homeRecentResults = recentResultsForTeam(tournamentMatches, match.home_team, match.kickoff_time, match.id)
   const awayRecentResults = recentResultsForTeam(tournamentMatches, match.away_team, match.kickoff_time, match.id)
+  const penaltyEligible = match.stage !== 'group'
+  const formScoresAreDraw =
+    homeVal !== '' &&
+    awayVal !== '' &&
+    Number.isInteger(Number(homeVal)) &&
+    Number.isInteger(Number(awayVal)) &&
+    Number(homeVal) === Number(awayVal)
+  const showPenaltyPicker = !isLocked && penaltyEligible && formScoresAreDraw
+  const penaltyPickReady = penaltyWinner === match.home_team || penaltyWinner === match.away_team
 
   // Points earned on finished match
   let pointsEarned: number | null = null
-  let pointsKind: 'exact' | 'difference' | 'outcome' | 'wrong' = 'wrong'
+  let pointsKind: MatchPointKind = 'wrong'
+  let penaltyBonus = 0
   if (match.status === 'finished' && match.prediction && match.home_score !== null && match.away_score !== null) {
     const p = match.prediction
-    pointsEarned = matchPoints(
-      p.home_score,
-      p.away_score,
-      match.home_score,
-      match.away_score,
-      match.stage,
-      scoringMode
-    )
-    const predictedDifference = p.home_score - p.away_score
-    const realDifference = match.home_score - match.away_score
-
-    if (p.home_score === match.home_score && p.away_score === match.away_score) {
-      pointsKind = 'exact'
-    } else if (predictedDifference === realDifference) {
-      pointsKind = 'difference'
-    } else if (Math.sign(predictedDifference) === Math.sign(realDifference)) {
-      pointsKind = 'outcome'
-    }
+    const scored = predictionPoints({
+      predHome: p.home_score,
+      predAway: p.away_score,
+      realHome: match.home_score,
+      realAway: match.away_score,
+      stage: match.stage,
+      mode: scoringMode,
+      predictedPenaltyWinner: p.penalty_winner_team,
+      resultWinnerTeam: match.result_winner_team,
+      wentToPenalties: match.went_to_penalties,
+    })
+    pointsEarned = scored.total_points
+    pointsKind = scored.kind
+    penaltyBonus = scored.penalty_bonus
   }
 
-  const save = useCallback(async (home: string, away: string) => {
+  const save = useCallback(async (home: string, away: string, nextPenaltyWinner = penaltyWinner) => {
     if (home === '' || away === '' || isLocked) return
     const homeScore = Number(home)
     const awayScore = Number(away)
@@ -102,10 +110,22 @@ export function MatchCard({
       return
     }
 
+    const requiresPenaltyWinner = match.stage !== 'group' && homeScore === awayScore
+    const cleanPenaltyWinner = requiresPenaltyWinner ? nextPenaltyWinner : ''
+    if (
+      requiresPenaltyWinner &&
+      cleanPenaltyWinner !== match.home_team &&
+      cleanPenaltyWinner !== match.away_team
+    ) {
+      return
+    }
+    const penaltyWinnerTeam = requiresPenaltyWinner ? cleanPenaltyWinner : null
+
     if (
       match.prediction &&
       homeScore === match.prediction.home_score &&
-      awayScore === match.prediction.away_score
+      awayScore === match.prediction.away_score &&
+      (match.prediction.penalty_winner_team ?? null) === penaltyWinnerTeam
     ) {
       return
     }
@@ -117,7 +137,13 @@ export function MatchCard({
       const res = await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match_id: match.id, player_id: playerId, home_score: homeScore, away_score: awayScore }),
+        body: JSON.stringify({
+          match_id: match.id,
+          player_id: playerId,
+          home_score: homeScore,
+          away_score: awayScore,
+          penalty_winner_team: penaltyWinnerTeam,
+        }),
       })
       const data = await res.json().catch(() => ({})) as SaveResponse
 
@@ -128,7 +154,8 @@ export function MatchCard({
         !data.verified ||
         !data.prediction ||
         data.prediction.home_score !== homeScore ||
-        data.prediction.away_score !== awayScore
+        data.prediction.away_score !== awayScore ||
+        (data.prediction.penalty_winner_team ?? null) !== penaltyWinnerTeam
       ) {
         setSaveState('error')
         return
@@ -136,6 +163,7 @@ export function MatchCard({
 
       onPredictionSaved?.(data.prediction)
       setLastVerifiedPrediction(data.prediction)
+      setPenaltyWinner(data.prediction.penalty_winner_team ?? '')
       setSaveState('saved')
       setTimeout(() => {
         if (saveRequestRef.current === requestId) setSaveState('idle')
@@ -143,7 +171,7 @@ export function MatchCard({
     } catch {
       if (requestId === saveRequestRef.current) setSaveState('error')
     }
-  }, [match.id, match.prediction, playerId, isLocked, onPredictionSaved])
+  }, [match.id, match.home_team, match.away_team, match.stage, match.prediction, playerId, isLocked, onPredictionSaved, penaltyWinner])
 
   return (
     <div className="rounded-xl overflow-hidden"
@@ -187,6 +215,44 @@ export function MatchCard({
         </span>
       </div>
 
+      {showPenaltyPicker && (
+        <div className="px-4 pb-3">
+          <div
+            className="flex flex-col gap-2 rounded-lg border px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border-subtle)' }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--gold)' }}>
+              Penalties
+            </span>
+            <div className="grid grid-cols-2 gap-2 sm:min-w-72">
+              {[match.home_team, match.away_team].map(team => {
+                const selected = penaltyWinner === team
+                return (
+                  <button
+                    key={team}
+                    type="button"
+                    onClick={() => {
+                      setPenaltyWinner(team)
+                      void save(homeVal, awayVal, team)
+                    }}
+                    aria-pressed={selected}
+                    aria-label={`Pick ${formatCountryName(team)} to win on penalties`}
+                    className="min-w-0 cursor-pointer rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors"
+                    style={{
+                      background: selected ? 'var(--accent-glow)' : 'var(--bg)',
+                      border: `1.5px solid ${selected ? 'rgba(63,185,80,0.45)' : 'var(--border)'}`,
+                      color: selected ? 'var(--accent)' : 'var(--text-muted)',
+                    }}
+                  >
+                    <CountryName name={team} />
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AI insight */}
       {match.ai_insight && match.status === 'open' && (
         <div className="px-4 pb-3">
@@ -225,28 +291,41 @@ export function MatchCard({
       )}
 
       {/* Footer: save state / pick / points */}
-      {(saveState !== 'idle' || match.prediction || pointsEarned !== null) && (
+      {(saveState !== 'idle' || match.prediction || pointsEarned !== null || (showPenaltyPicker && !penaltyPickReady)) && (
         <div className="flex items-center justify-between px-4 py-2"
           style={{ borderTop: '1px solid var(--border-subtle)' }}>
           <div className="text-sm flex items-center gap-1">
             {saveState === 'saving' && <><Loader2 size={13} className="animate-spin" style={{ color: 'var(--text-muted)' }} /><span style={{ color: 'var(--text-muted)' }}>Saving…</span></>}
             {saveState === 'saved'  && <><Check size={13} style={{ color: 'var(--accent)' }} /><span style={{ color: 'var(--accent)' }}>{lastVerifiedSavedAtLabel ? `Saved ${lastVerifiedSavedAtLabel}` : 'Saved'}</span></>}
             {saveState === 'error'  && <span style={{ color: 'var(--red)' }}>Save failed</span>}
-            {saveState === 'idle' && match.prediction && (
+            {saveState === 'idle' && showPenaltyPicker && !penaltyPickReady && (
+              <span style={{ color: 'var(--gold)' }}>Pick shootout winner to save</span>
+            )}
+            {saveState === 'idle' && !(showPenaltyPicker && !penaltyPickReady) && match.prediction && (
               <span style={{ color: 'var(--text-subtle)' }}>
-                Your pick: {match.prediction.home_score}–{match.prediction.away_score}
+                Your pick: {match.prediction.home_score}-{match.prediction.away_score}
+                {match.prediction.penalty_winner_team && (
+                  <>
+                    , pens: <CountryName name={match.prediction.penalty_winner_team} />
+                  </>
+                )}
                 {savedAtLabel ? ` · Saved ${savedAtLabel}` : ''}
               </span>
             )}
           </div>
-          {pointsEarned !== null && <PointsBadge pts={pointsEarned} kind={pointsKind} />}
+          {pointsEarned !== null && <PointsBadge pts={pointsEarned} kind={pointsKind} penaltyBonus={penaltyBonus} />}
         </div>
       )}
 
       {/* Actual result (when finished) */}
       {match.status === 'finished' && match.home_score !== null && (
         <div className="px-4 pb-2 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
-          Final: {match.home_score}–{match.away_score}
+          Final: {match.home_score}-{match.away_score}
+          {match.went_to_penalties && match.result_winner_team && (
+            <>
+              , pens: <CountryName name={match.result_winner_team} />
+            </>
+          )}
         </div>
       )}
 
@@ -391,16 +470,23 @@ function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {
   )
 }
 
-function PointsBadge({ pts, kind }: { pts: number; kind: 'exact' | 'difference' | 'outcome' | 'wrong' }) {
+function PointsBadge({ pts, kind, penaltyBonus }: { pts: number; kind: MatchPointKind; penaltyBonus: number }) {
+  const label = penaltyBonus > 0
+    ? `+${pts} pts (+${penaltyBonus} pens)`
+    : kind === 'outcome'
+      ? `+${pts} ${pts === 1 ? 'pt' : 'pts'}`
+      : kind === 'wrong'
+        ? '0 pts'
+        : `+${pts} pts`
   const cfg =
-    kind === 'exact' ? { label: `+${pts} pts`, color: 'var(--accent)',      bg: 'var(--accent-glow)',           border: 'rgba(63,185,80,0.3)' } :
-    kind === 'difference' ? { label: `+${pts} pts`, color: 'var(--accent)', bg: 'rgba(63,185,80,0.12)', border: 'rgba(63,185,80,0.24)' } :
-    kind === 'outcome' ? { label: `+${pts} ${pts === 1 ? 'pt' : 'pts'}`, color: 'var(--gold)', bg: 'rgba(210,153,34,0.12)', border: 'rgba(210,153,34,0.3)' } :
-                         { label: '0 pts', color: 'var(--text-subtle)', bg: 'var(--surface-2)', border: 'var(--border)' }
+    kind === 'exact' ? { color: 'var(--accent)',      bg: 'var(--accent-glow)',           border: 'rgba(63,185,80,0.3)' } :
+    kind === 'difference' ? { color: 'var(--accent)', bg: 'rgba(63,185,80,0.12)', border: 'rgba(63,185,80,0.24)' } :
+    kind === 'outcome' ? { color: 'var(--gold)', bg: 'rgba(210,153,34,0.12)', border: 'rgba(210,153,34,0.3)' } :
+                         { color: 'var(--text-subtle)', bg: 'var(--surface-2)', border: 'var(--border)' }
   return (
     <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
       style={{ color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}` }}>
-      {cfg.label}
+      {label}
     </span>
   )
 }

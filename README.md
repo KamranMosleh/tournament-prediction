@@ -38,7 +38,7 @@ Invite links preserve their destination through sign-in, signup, and email confi
 - Match and prediction changes are received through Supabase Realtime so standings and match views update without a full page reload.
 - The **Reveal** tab supports match-status filtering and explains when anonymous trends, named picks, and earned points become visible.
 - The **My Picks** tab shows the current tournament bonus tier, lock deadlines, saved league picks, and the point effect of changing an existing pick.
-- The **Results** tab lets admins enter the official top scorer. Manual-sync leagues also allow admins to enter and correct match results, including selecting a penalty-shootout winner for a tied final.
+- The **Results** tab lets admins enter the official top scorer. Manual-sync leagues also allow admins to enter and correct match results, including selecting a penalty-shootout winner for tied knockout games.
 - The interface is responsive: header controls and match-view buttons wrap on narrow screens, while tabs remain horizontally scrollable.
 
 ## Quick Start
@@ -106,6 +106,7 @@ Match prediction scoring:
 
 In multiplied mode, stage multipliers are group x1, round of 16 x2, quarter-final x3, semi-final x4, third place x4, and final x5.
 In flat mode, every stage remains 3/2/1/0 with no multiplier.
+For non-group matches, a draw prediction can include a penalty shootout winner. If the real match goes to penalties and the predicted shootout winner is correct, the player gets a small bonus: +1 in flat mode or +2 in multiplied mode. No penalty bonus is awarded if the match is won before penalties.
 
 Tournament picks use time-weighted bonuses:
 

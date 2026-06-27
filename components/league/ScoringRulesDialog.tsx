@@ -3,7 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { BookOpen, CheckCircle2, Clock3, Trophy, X } from 'lucide-react'
 import type { MatchStage, ScoringMode } from '@/types'
-import { BASE_MATCH_POINTS, STAGE_MULTIPLIERS } from '@/lib/scoring'
+import { BASE_MATCH_POINTS, PENALTY_BONUS_POINTS, STAGE_MULTIPLIERS } from '@/lib/scoring'
 import { TOP_SCORER_BONUS_TIERS, WINNER_BONUS_TIERS } from '@/lib/tournament-picks'
 import { stageLabel } from '@/lib/utils'
 
@@ -126,6 +126,19 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
                 Flat mode uses {BASE_MATCH_POINTS.exact}/{BASE_MATCH_POINTS.difference}/{BASE_MATCH_POINTS.outcome}/{BASE_MATCH_POINTS.wrong} points at every stage, with no multipliers.
               </p>
             )}
+
+            <div className="mt-4 rounded-lg p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--text)' }}>
+                Penalty shootout bonus
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <PointCard label="Flat" points={PENALTY_BONUS_POINTS.flat} />
+                <PointCard label="Multiplied" points={PENALTY_BONUS_POINTS.multiplied} />
+              </div>
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                Non-group draw predictions can include a shootout winner. The bonus applies only if the real match goes to penalties.
+              </p>
+            </div>
           </RuleSection>
 
           <RuleSection icon={<Trophy size={15} />} title="Tournament bonuses">

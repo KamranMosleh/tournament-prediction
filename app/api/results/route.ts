@@ -62,8 +62,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Match results are managed by automatic sync' }, { status: 409 })
     }
 
+    const penaltyEligible = match.stage !== 'group'
+    const wentToPenalties = penaltyEligible && homeScore === awayScore
     let resultWinnerTeam: string | null = null
-    if (match.stage === 'final') {
+
+    if (penaltyEligible) {
       if (homeScore > awayScore) {
         resultWinnerTeam = match.home_team
       } else if (awayScore > homeScore) {
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
         resultWinnerTeam = shootout_winner_team
       } else {
         return NextResponse.json(
-          { error: 'Select the penalty shootout winner for a tied final' },
+          { error: 'Select the penalty shootout winner for this tied knockout match' },
           { status: 400 }
         )
       }
@@ -85,6 +88,7 @@ export async function POST(req: NextRequest) {
         away_score: awayScore,
         status: 'finished',
         result_winner_team: resultWinnerTeam,
+        went_to_penalties: wentToPenalties,
       })
       .eq('id', match_id)
       .select()

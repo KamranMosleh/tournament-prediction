@@ -1,4 +1,4 @@
-import { matchPoints } from '@/lib/scoring'
+import { predictionPoints } from '@/lib/scoring'
 import type {
   Match,
   MatchPrediction,
@@ -43,13 +43,23 @@ export function buildMatchRevealData(
 
       const points =
         match.status === 'finished' && match.home_score !== null && match.away_score !== null
-          ? matchPoints(pred.home_score, pred.away_score, match.home_score, match.away_score, match.stage, scoringMode)
+          ? predictionPoints({
+              predHome: pred.home_score,
+              predAway: pred.away_score,
+              realHome: match.home_score,
+              realAway: match.away_score,
+              stage: match.stage,
+              mode: scoringMode,
+              predictedPenaltyWinner: pred.penalty_winner_team,
+              resultWinnerTeam: match.result_winner_team,
+              wentToPenalties: match.went_to_penalties,
+            }).total_points
           : null
 
       return {
         player_id: player.id,
         player_name: player.display_name,
-        score: `${pred.home_score}-${pred.away_score}`,
+        score: formatPredictionScore(pred),
         points,
       }
     })
@@ -65,4 +75,11 @@ export function buildMatchRevealData(
     },
     entries,
   }
+}
+
+function formatPredictionScore(prediction: MatchPrediction): string {
+  const score = `${prediction.home_score}-${prediction.away_score}`
+  return prediction.penalty_winner_team
+    ? `${score}, pens: ${prediction.penalty_winner_team}`
+    : score
 }

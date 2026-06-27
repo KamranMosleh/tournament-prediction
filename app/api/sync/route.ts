@@ -143,7 +143,9 @@ export async function POST(req: NextRequest) {
       const homeScore = isFinished ? (m.score?.fullTime?.home ?? null) : null
       const awayScore = isFinished ? (m.score?.fullTime?.away ?? null) : null
       const apiWinner = m.score?.winner
-      const resultWinnerTeam = stage === 'final' && isFinished
+      const penaltyEligible = stage !== 'group'
+      const wentToPenalties = isFinished && m.score?.duration === 'PENALTY_SHOOTOUT'
+      const resultWinnerTeam = penaltyEligible && isFinished
         ? apiWinner === 'HOME_TEAM'
           ? homeTeam
           : apiWinner === 'AWAY_TEAM'
@@ -171,6 +173,7 @@ export async function POST(req: NextRequest) {
         home_score: homeScore,
         away_score: awayScore,
         result_winner_team: resultWinnerTeam,
+        went_to_penalties: wentToPenalties,
         match_day: m.matchday ?? null,
         venue: m.venue ?? null,
         last_synced_at: new Date().toISOString(),

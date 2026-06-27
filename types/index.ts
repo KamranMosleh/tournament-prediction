@@ -46,6 +46,7 @@ export interface Match {
   home_score: number | null
   away_score: number | null
   result_winner_team: string | null
+  went_to_penalties: boolean
   match_day: number | null
   venue: string | null
   ai_insight: string | null
@@ -59,6 +60,7 @@ export interface MatchPrediction {
   match_id: string
   home_score: number
   away_score: number
+  penalty_winner_team: string | null
   submitted_at: string
 }
 

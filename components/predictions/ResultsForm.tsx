@@ -202,8 +202,9 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState('')
   const { date, time } = formatKickoff(match.kickoff_time)
-  const isTiedFinal =
-    match.stage === 'final' &&
+  const isPenaltyEligible = match.stage !== 'group'
+  const isTiedKnockout =
+    isPenaltyEligible &&
     home !== '' &&
     away !== '' &&
     Number(home) === Number(away)
@@ -211,7 +212,7 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
     home !== '' &&
     away !== '' &&
     state !== 'saving' &&
-    (!isTiedFinal || shootoutWinner === match.home_team || shootoutWinner === match.away_team)
+    (!isTiedKnockout || shootoutWinner === match.home_team || shootoutWinner === match.away_team)
 
   const submit = async () => {
     if (!ready) return
@@ -226,7 +227,7 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
           league_id: leagueId,
           home_score: Number(home),
           away_score: Number(away),
-          shootout_winner_team: isTiedFinal ? shootoutWinner : null,
+          shootout_winner_team: isTiedKnockout ? shootoutWinner : null,
         }),
       })
       const data = await res.json()
@@ -299,7 +300,7 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
         </button>
       </div>
 
-      {isTiedFinal && (
+      {isTiedKnockout && (
         <div className="mt-3">
           <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--gold)' }}>
             Penalty shootout winner
@@ -317,10 +318,10 @@ function ResultRow({ match, leagueId }: { match: Match; leagueId: string }) {
         </div>
       )}
 
-      {match.stage === 'final' && match.result_winner_team && !isTiedFinal && (
+      {isPenaltyEligible && match.result_winner_team && !isTiedKnockout && (
         <p className="text-xs mt-2 text-center" style={{ color: 'var(--gold)' }}>
           <span className="inline-flex items-center justify-center gap-1">
-            Champion: <CountryName name={match.result_winner_team} />
+            {match.stage === 'final' ? 'Champion' : 'Winner'}: <CountryName name={match.result_winner_team} />
           </span>
         </p>
       )}

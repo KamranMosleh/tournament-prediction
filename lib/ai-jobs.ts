@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { createHash } from 'crypto'
 import { groqComplete, groqCompleteJSON, insightPrompt, punditsPrompt, dailyPunditPrompt, matchRecapPrompt, type PlayerPredictionInput } from '@/lib/groq'
 import { getMatchContext, formatContext, deriveDifficulty } from '@/lib/football-context'
-import { computeLeaderboard, sortLeaderboard, matchPoints } from '@/lib/scoring'
+import { computeLeaderboard, sortLeaderboard, predictionPoints } from '@/lib/scoring'
 import { formatCoverageLabel, getVenueLocalDateInfo } from '@/lib/venue-date'
 import type {
   League,
@@ -435,6 +435,13 @@ function formatDailyResultLine(match: Match): string {
   return `${match.home_team} ${match.home_score}-${match.away_score} ${match.away_team}${location}`
 }
 
+function formatMatchPrediction(prediction: MatchPrediction): string {
+  const score = `${prediction.home_score}-${prediction.away_score}`
+  return prediction.penalty_winner_team
+    ? `${score}, pens: ${prediction.penalty_winner_team}`
+    : score
+}
+
 function buildDailyCoverageFingerprint(
   league: League,
   group: DailyCoverageGroup,
@@ -449,6 +456,7 @@ function buildDailyCoverageFingerprint(
       home_score: match.home_score,
       away_score: match.away_score,
       result_winner_team: match.result_winner_team,
+      went_to_penalties: match.went_to_penalties,
     })),
     scoringMode: league.scoring_mode,
     officialTopScorer: league.official_top_scorer_name ?? '',
@@ -711,18 +719,21 @@ export async function generateMatchRecap(
   const promptPlayers: PlayerPredictionInput[] = (players as Player[]).map(p => {
     const pred = predMap.get(p.id)
     const pts = pred
-      ? matchPoints(
-          pred.home_score,
-          pred.away_score,
-          match.home_score,
-          match.away_score,
-          match.stage,
-          league.scoring_mode
-        )
+      ? predictionPoints({
+          predHome: pred.home_score,
+          predAway: pred.away_score,
+          realHome: match.home_score,
+          realAway: match.away_score,
+          stage: match.stage,
+          mode: league.scoring_mode,
+          predictedPenaltyWinner: pred.penalty_winner_team,
+          resultWinnerTeam: match.result_winner_team,
+          wentToPenalties: match.went_to_penalties,
+        }).total_points
       : 0
     return {
       name: p.display_name,
-      prediction: pred ? `${pred.home_score}–${pred.away_score}` : null,
+      prediction: pred ? formatMatchPrediction(pred) : null,
       points: pts,
     }
   })

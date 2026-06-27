@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getCurrentUser, toSession, upsertProfile } from '@/lib/auth'
 import { generateInviteCode } from '@/lib/utils'
-import type { League, Player } from '@/types'
+import type { League, Player, ScoringMode } from '@/types'
 
 export async function POST(req: NextRequest) {
   try {
-    const { league_name, display_name, telegram_url, tournament_code, tournament_season, tournament } = await req.json()
+    const { league_name, display_name, telegram_url, tournament_code, tournament_season, tournament, scoring_mode } = await req.json()
+    const scoringMode: ScoringMode = scoring_mode === 'flat' || scoring_mode === 'multiplied'
+      ? scoring_mode
+      : 'multiplied'
 
     if (!league_name?.trim() || !display_name?.trim())
       return NextResponse.json({ error: 'Missing league_name or display_name' }, { status: 400 })
@@ -40,6 +43,7 @@ export async function POST(req: NextRequest) {
         tournament: tournamentName,
         tournament_code: tournament_code ?? 'WC',
         tournament_season: tournament_season ?? 2026,
+        scoring_mode: scoringMode,
         telegram_url: telegram_url ?? null,
       })
       .select()

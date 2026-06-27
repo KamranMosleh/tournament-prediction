@@ -15,7 +15,7 @@ import {
   Trophy,
   Users,
 } from 'lucide-react'
-import type { Session } from '@/types'
+import type { ScoringMode, Session } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
@@ -130,6 +130,7 @@ function CreateLeagueCard() {
   const [yourName, setYourName] = useState('')
   const [telegram, setTelegram] = useState('')
   const [tournamentIdx, setTournamentIdx] = useState(0)
+  const [scoringMode, setScoringMode] = useState<ScoringMode>('multiplied')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -149,6 +150,7 @@ function CreateLeagueCard() {
           tournament: tournament.label,
           tournament_code: tournament.code,
           tournament_season: tournament.season,
+          scoring_mode: scoringMode,
         }),
       })
       const data = await res.json()
@@ -175,6 +177,7 @@ function CreateLeagueCard() {
             {TOURNAMENTS.map((tournament, index) => <option key={`${tournament.code}-${tournament.season}`} value={index}>{tournament.label}</option>)}
           </select>
         </div>
+        <ScoringModeSelector value={scoringMode} onChange={setScoringMode} />
         <button onClick={() => setShowAdvanced(value => !value)} className="flex items-center gap-1 text-xs w-fit" style={{ color: 'var(--text-subtle)' }}>
           {showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           {showAdvanced ? 'Hide options' : 'Add Telegram / WhatsApp Group Link'}
@@ -191,6 +194,55 @@ function CreateLeagueCard() {
         <ActionButton onClick={handleCreate} disabled={!ready || loading} loading={loading} label="Create League" color="var(--accent)" />
       </div>
     </Card>
+  )
+}
+
+function ScoringModeSelector({ value, onChange }: { value: ScoringMode; onChange: (value: ScoringMode) => void }) {
+  const options: Array<{ value: ScoringMode; label: string; note: string }> = [
+    {
+      value: 'multiplied',
+      label: 'Stage multiplied',
+      note: 'Group stays 3/2/1, later rounds are worth more.',
+    },
+    {
+      value: 'flat',
+      label: 'Flat',
+      note: 'Every match uses 3/2/1, no matter the stage.',
+    },
+  ]
+
+  return (
+    <div>
+      <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--text-muted)' }}>
+        Match scoring
+      </label>
+      <div
+        className="grid grid-cols-2 gap-1 rounded-lg p-1"
+        style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}
+      >
+        {options.map(option => {
+          const selected = value === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              aria-pressed={selected}
+              className="cursor-pointer rounded-md px-2.5 py-2 text-xs font-semibold"
+              style={{
+                background: selected ? 'var(--accent)' : 'transparent',
+                color: selected ? '#000' : 'var(--text-muted)',
+              }}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-1.5 text-xs leading-relaxed" style={{ color: 'var(--text-subtle)' }}>
+        {options.find(option => option.value === value)?.note}
+      </p>
+    </div>
   )
 }
 

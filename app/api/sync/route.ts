@@ -20,6 +20,7 @@ type ExistingApiMatch = {
 function mapStage(stage: string, group: string | null): { stage: MatchStage; group_name: string | null } {
   const s = stage.toUpperCase()
   if (s.includes('GROUP')) return { stage: 'group', group_name: group?.replace('GROUP_', '') ?? null }
+  if (s.includes('ROUND_OF_32') || s.includes('LAST_32')) return { stage: 'round_of_32', group_name: null }
   if (s.includes('ROUND_OF_16') || s.includes('LAST_16')) return { stage: 'round_of_16', group_name: null }
   if (s.includes('QUARTER')) return { stage: 'quarter_final', group_name: null }
   if (s.includes('SEMI')) return { stage: 'semi_final', group_name: null }

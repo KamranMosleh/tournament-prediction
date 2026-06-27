@@ -20,6 +20,7 @@ export const PENALTY_BONUS_POINTS: Readonly<Record<ScoringMode, number>> = {
 
 export const STAGE_MULTIPLIERS: Readonly<Record<MatchStage, number>> = {
   group: 1,
+  round_of_32: 2,
   round_of_16: 2,
   quarter_final: 3,
   semi_final: 4,

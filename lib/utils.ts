@@ -24,7 +24,7 @@ export function initials(name: string): string {
 
 export function stageLabel(stage: MatchStage): string {
   const labels: Record<MatchStage, string> = {
-    group: 'Group Stage', round_of_16: 'Round of 16', quarter_final: 'Quarter-Finals',
+    group: 'Group Stage', round_of_32: 'Round of 32', round_of_16: 'Round of 16', quarter_final: 'Quarter-Finals',
     semi_final: 'Semi-Finals', third_place: 'Third Place', final: 'Final',
   }
   return labels[stage]
@@ -32,7 +32,7 @@ export function stageLabel(stage: MatchStage): string {
 
 export function stageOrder(stage: MatchStage): number {
   const order: Record<MatchStage, number> = {
-    group: 0, round_of_16: 1, quarter_final: 2, semi_final: 3, third_place: 4, final: 5,
+    group: 0, round_of_32: 1, round_of_16: 2, quarter_final: 3, semi_final: 4, third_place: 5, final: 6,
   }
   return order[stage]
 }

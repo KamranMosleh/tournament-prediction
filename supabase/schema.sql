@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS matches (
   tournament_season INTEGER NOT NULL DEFAULT 2026,
   external_match_id INTEGER UNIQUE,
   stage             TEXT NOT NULL CHECK (stage IN (
-                      'group','round_of_16','quarter_final',
+                      'group','round_of_32','round_of_16','quarter_final',
                       'semi_final','third_place','final'
                     )),
   group_name        TEXT,
@@ -248,6 +248,7 @@ SELECT
       ELSE
         CASE m.stage
           WHEN 'group'         THEN 1
+          WHEN 'round_of_32'   THEN 2
           WHEN 'round_of_16'   THEN 2
           WHEN 'quarter_final' THEN 3
           WHEN 'semi_final'    THEN 4
@@ -307,7 +308,7 @@ SELECT
       WHEN p.joined_match_day IS NOT NULL AND m.match_day < p.joined_match_day THEN 0
       ELSE
         CASE m.stage
-          WHEN 'group' THEN 1 WHEN 'round_of_16' THEN 2
+          WHEN 'group' THEN 1 WHEN 'round_of_32' THEN 2 WHEN 'round_of_16' THEN 2
           WHEN 'quarter_final' THEN 3 WHEN 'semi_final' THEN 4
           WHEN 'third_place' THEN 4 WHEN 'final' THEN 5 ELSE 1
         END *
@@ -334,7 +335,7 @@ SELECT
       WHEN p.joined_match_day IS NOT NULL AND m.match_day < p.joined_match_day THEN 0
       ELSE
         CASE m.stage
-          WHEN 'group' THEN 3 WHEN 'round_of_16' THEN 6
+          WHEN 'group' THEN 3 WHEN 'round_of_32' THEN 6 WHEN 'round_of_16' THEN 6
           WHEN 'quarter_final' THEN 9 WHEN 'semi_final' THEN 12
           WHEN 'third_place' THEN 12 WHEN 'final' THEN 15 ELSE 3
         END

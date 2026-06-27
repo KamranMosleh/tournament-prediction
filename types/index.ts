@@ -1,5 +1,5 @@
 export type MatchStatus = 'open' | 'locked' | 'finished'
-export type MatchStage = 'group' | 'round_of_16' | 'quarter_final' | 'semi_final' | 'third_place' | 'final'
+export type MatchStage = 'group' | 'round_of_32' | 'round_of_16' | 'quarter_final' | 'semi_final' | 'third_place' | 'final'
 export type SyncSource = 'api' | 'manual'
 export type ScoringMode = 'multiplied' | 'flat'
 export type AIDifficulty = 'Easy' | 'Tricky' | 'Unpredictable'

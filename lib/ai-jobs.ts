@@ -51,6 +51,27 @@ function emptyOpenMatchEnrichmentResult(groqEnabled: boolean): OpenMatchEnrichme
   }
 }
 
+function isResolvedTeamName(teamName: string): boolean {
+  const normalized = teamName.trim().toUpperCase()
+
+  return !!normalized && ![
+    'TBD',
+    'TBA',
+    'TO BE DETERMINED',
+    'TO BE DECIDED',
+    'TO BE CONFIRMED',
+    'TO BE ANNOUNCED',
+  ].includes(normalized)
+}
+
+function hasResolvedMatchup(homeTeam: string, awayTeam: string): boolean {
+  return isResolvedTeamName(homeTeam) && isResolvedTeamName(awayTeam)
+}
+
+function insightContainsPlaceholder(insight: string | null): boolean {
+  return !!insight && /\b(?:TBD|TBA)\b|to be (?:determined|decided|confirmed|announced)/i.test(insight)
+}
+
 export function mergeOpenMatchEnrichmentResults(
   results: OpenMatchEnrichmentResult[]
 ): OpenMatchEnrichmentResult {
@@ -105,7 +126,13 @@ export async function enrichOpenMatchesForTournament(
         supabase
       )
       const difficulty = deriveDifficulty(ctx)
-      const shouldGenerateInsight = options.force || !match.ai_insight
+      const teamsResolved = hasResolvedMatchup(match.home_team, match.away_team)
+      const hasStalePlaceholderInsight = teamsResolved && insightContainsPlaceholder(match.ai_insight)
+      const shouldGenerateInsight = teamsResolved && (
+        options.force ||
+        !match.ai_insight ||
+        hasStalePlaceholderInsight
+      )
 
       let insight: string | null = null
       if (shouldGenerateInsight) {
@@ -117,6 +144,7 @@ export async function enrichOpenMatchesForTournament(
             insightPrompt(match.home_team, match.away_team, tournament, match.stage, liveContext || undefined),
             120
           )
+          if (insightContainsPlaceholder(insight)) insight = null
 
           // Groq's public rate limit is modest; keep automated batches gentle.
           await new Promise(r => setTimeout(r, 2100))
@@ -129,13 +157,16 @@ export async function enrichOpenMatchesForTournament(
 
       const update: {
         ai_difficulty: ReturnType<typeof deriveDifficulty>
-        ai_insight?: string
-        ai_insight_generated_at?: string
+        ai_insight?: string | null
+        ai_insight_generated_at?: string | null
       } = { ai_difficulty: difficulty }
 
       if (insight !== null) {
         update.ai_insight = insight
         update.ai_insight_generated_at = new Date().toISOString()
+      } else if (hasStalePlaceholderInsight) {
+        update.ai_insight = null
+        update.ai_insight_generated_at = null
       }
 
       const { error: updateError } = await supabase

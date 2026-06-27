@@ -11,6 +11,12 @@ import type { MatchStage, MatchStatus } from '@/types'
 
 const FD_BASE = 'https://api.football-data.org/v4'
 
+type ExistingApiMatch = {
+  external_match_id: number | null
+  home_team: string
+  away_team: string
+}
+
 function mapStage(stage: string, group: string | null): { stage: MatchStage; group_name: string | null } {
   const s = stage.toUpperCase()
   if (s.includes('GROUP')) return { stage: 'group', group_name: group?.replace('GROUP_', '') ?? null }
@@ -110,6 +116,23 @@ export async function POST(req: NextRequest) {
     })
     if (!res.ok) throw new Error(`football-data.org ${res.status}`)
     const data = await res.json()
+    const incomingMatchIds = ((data.matches ?? []) as Array<{ id?: unknown }>)
+      .map(match => typeof match.id === 'number' ? match.id : null)
+      .filter((id): id is number => id !== null)
+    const existingByExternalId = new Map<number, ExistingApiMatch>()
+
+    if (incomingMatchIds.length > 0) {
+      const { data: existingMatches } = await supabase
+        .from('matches')
+        .select('external_match_id, home_team, away_team')
+        .in('external_match_id', incomingMatchIds)
+
+      for (const existing of (existingMatches ?? []) as ExistingApiMatch[]) {
+        if (existing.external_match_id !== null) {
+          existingByExternalId.set(existing.external_match_id, existing)
+        }
+      }
+    }
 
     for (const m of data.matches ?? []) {
       const { stage, group_name } = mapStage(m.stage ?? '', m.group ?? null)
@@ -130,7 +153,12 @@ export async function POST(req: NextRequest) {
               : null
         : null
 
-      const { error } = await supabase.from('matches').upsert({
+      const existingMatch = typeof m.id === 'number' ? existingByExternalId.get(m.id) : undefined
+      const matchupChanged = !!existingMatch && (
+        existingMatch.home_team !== homeTeam ||
+        existingMatch.away_team !== awayTeam
+      )
+      const matchPayload = {
         tournament_code: tournamentCode,
         tournament_season: season,
         external_match_id: m.id,
@@ -146,7 +174,12 @@ export async function POST(req: NextRequest) {
         match_day: m.matchday ?? null,
         venue: m.venue ?? null,
         last_synced_at: new Date().toISOString(),
-      }, { onConflict: 'external_match_id' })
+      }
+      const upsertPayload = matchupChanged
+        ? { ...matchPayload, ai_insight: null, ai_insight_generated_at: null }
+        : matchPayload
+
+      const { error } = await supabase.from('matches').upsert(upsertPayload, { onConflict: 'external_match_id' })
 
       if (!error) {
         matchesUpdated++

@@ -20,6 +20,11 @@ export type SummaryGenerationResult = {
   reason?: string
 }
 
+type ExistingMatchRecap = {
+  id: string
+  roasts: PlayerRoast[] | null
+}
+
 export type BatchGenerationResult = {
   created: number
   updated: number
@@ -442,6 +447,26 @@ function formatMatchPrediction(prediction: MatchPrediction): string {
     : score
 }
 
+function normalizeScoreLabel(value: string): string {
+  return value
+    .replace(/[\u2012-\u2015]/g, '-')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+function existingRecapMatchesActual(
+  existing: ExistingMatchRecap | null,
+  actualResult: string
+): boolean {
+  if (!existing?.roasts || existing.roasts.length === 0) return false
+
+  const normalizedActual = normalizeScoreLabel(actualResult)
+  return existing.roasts.every(roast =>
+    typeof roast.actual === 'string' &&
+    normalizeScoreLabel(roast.actual) === normalizedActual
+  )
+}
+
 function buildDailyCoverageFingerprint(
   league: League,
   group: DailyCoverageGroup,
@@ -658,21 +683,8 @@ export async function generateMatchRecap(
   matchId: string,
   supabaseArg?: ServiceClient
 ): Promise<SummaryGenerationResult> {
-  if (!process.env.GROQ_API_KEY) {
-    return { status: 'skipped', reason: 'GROQ_API_KEY not set' }
-  }
-
   const supabase = supabaseArg ?? createServiceClient()
-
-  // Idempotency check
-  const { data: existing } = await supabase
-    .from('match_recaps')
-    .select('id')
-    .eq('league_id', leagueId)
-    .eq('match_id', matchId)
-    .single()
-
-  if (existing) return { status: 'skipped', reason: 'already exists' }
+  const hasGroq = !!process.env.GROQ_API_KEY
 
   const { data: league } = await supabase
     .from('leagues')
@@ -691,6 +703,33 @@ export async function generateMatchRecap(
 
   if (!match || match.status !== 'finished' || match.home_score === null || match.away_score === null) {
     return { status: 'skipped', reason: 'match not finished' }
+  }
+
+  const actualResult = `${match.home_score}–${match.away_score}`
+  const { data: existing } = await supabase
+    .from('match_recaps')
+    .select('id, roasts')
+    .eq('league_id', leagueId)
+    .eq('match_id', matchId)
+    .maybeSingle()
+
+  const existingRecap = (existing as ExistingMatchRecap | null) ?? null
+  if (existingRecapMatchesActual(existingRecap, actualResult)) {
+    return { status: 'skipped', reason: 'already current' }
+  }
+
+  if (!hasGroq) {
+    if (existingRecap) {
+      const { error: deleteError } = await supabase
+        .from('match_recaps')
+        .delete()
+        .eq('id', existingRecap.id)
+
+      if (deleteError) return { status: 'error', reason: deleteError.message }
+      return { status: 'updated', reason: 'stale recap removed; GROQ_API_KEY not set' }
+    }
+
+    return { status: 'skipped', reason: 'GROQ_API_KEY not set' }
   }
 
   // All players in this league
@@ -715,7 +754,6 @@ export async function generateMatchRecap(
   )
 
   // Build per-player prompt input and roast skeleton
-  const actualResult = `${match.home_score}–${match.away_score}`
   const promptPlayers: PlayerPredictionInput[] = (players as Player[]).map(p => {
     const pred = predMap.get(p.id)
     const pts = pred
@@ -765,6 +803,20 @@ export async function generateMatchRecap(
     }
   })
 
+  if (existingRecap) {
+    const { error: updateError } = await supabase
+      .from('match_recaps')
+      .update({
+        headline: parsed.headline,
+        roasts,
+        generated_at: new Date().toISOString(),
+      })
+      .eq('id', existingRecap.id)
+
+    if (updateError) return { status: 'error', reason: updateError.message }
+    return { status: 'updated' }
+  }
+
   const { error: insertError } = await supabase
     .from('match_recaps')
     .insert({
@@ -788,7 +840,7 @@ export async function autoGenerateMatchRecapsForMatch(
   tournamentCode: string,
   tournamentSeason: number,
   supabaseArg?: ServiceClient
-): Promise<{ created: number; skipped: number; errors: number }> {
+): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
   const supabase = supabaseArg ?? createServiceClient()
 
   const { data: leagues } = await supabase
@@ -798,16 +850,17 @@ export async function autoGenerateMatchRecapsForMatch(
     .eq('tournament_season', tournamentSeason)
     .is('archived_at', null)
 
-  if (!leagues?.length) return { created: 0, skipped: 0, errors: 0 }
+  if (!leagues?.length) return { created: 0, updated: 0, skipped: 0, errors: 0 }
 
-  let created = 0, skipped = 0, errors = 0
+  let created = 0, updated = 0, skipped = 0, errors = 0
   for (const league of leagues as Array<{ id: string }>) {
     const res = await generateMatchRecap(league.id, matchId, supabase)
     if (res.status === 'created') created++
+    else if (res.status === 'updated') updated++
     else if (res.status === 'skipped') skipped++
     else errors++
   }
-  return { created, skipped, errors }
+  return { created, updated, skipped, errors }
 }
 
 /** After a bulk sync, generate recaps for all finished matches that still lack one. */
@@ -815,7 +868,7 @@ export async function autoGenerateMatchRecapsForTournament(
   tournamentCode: string,
   tournamentSeason: number,
   supabaseArg?: ServiceClient
-): Promise<{ created: number; skipped: number; errors: number }> {
+): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
   const supabase = supabaseArg ?? createServiceClient()
 
   const { data: leagues } = await supabase
@@ -824,7 +877,7 @@ export async function autoGenerateMatchRecapsForTournament(
     .eq('tournament_code', tournamentCode)
     .eq('tournament_season', tournamentSeason)
 
-  if (!leagues?.length) return { created: 0, skipped: 0, errors: 0 }
+  if (!leagues?.length) return { created: 0, updated: 0, skipped: 0, errors: 0 }
 
   const { data: finishedMatches } = await supabase
     .from('matches')
@@ -833,16 +886,17 @@ export async function autoGenerateMatchRecapsForTournament(
     .eq('tournament_season', tournamentSeason)
     .eq('status', 'finished')
 
-  if (!finishedMatches?.length) return { created: 0, skipped: 0, errors: 0 }
+  if (!finishedMatches?.length) return { created: 0, updated: 0, skipped: 0, errors: 0 }
 
-  let created = 0, skipped = 0, errors = 0
+  let created = 0, updated = 0, skipped = 0, errors = 0
   for (const league of leagues as Array<{ id: string }>) {
     for (const match of finishedMatches as Array<{ id: string }>) {
       const res = await generateMatchRecap(league.id, match.id, supabase)
       if (res.status === 'created') created++
+      else if (res.status === 'updated') updated++
       else if (res.status === 'skipped') skipped++
       else errors++
     }
   }
-  return { created, skipped, errors }
+  return { created, updated, skipped, errors }
 }

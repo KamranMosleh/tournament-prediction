@@ -17,6 +17,30 @@ type ExistingApiMatch = {
   away_team: string
 }
 
+function isPlaceholderTeamName(teamName: string): boolean {
+  const normalized = teamName.trim().toUpperCase()
+  return [
+    'TBD',
+    'TBA',
+    'TO BE DETERMINED',
+    'TO BE DECIDED',
+    'TO BE CONFIRMED',
+    'TO BE ANNOUNCED',
+  ].includes(normalized)
+}
+
+function keepResolvedTeamName(incomingTeam: string, existingTeam?: string): string {
+  if (
+    existingTeam &&
+    !isPlaceholderTeamName(existingTeam) &&
+    isPlaceholderTeamName(incomingTeam)
+  ) {
+    return existingTeam
+  }
+
+  return incomingTeam
+}
+
 function mapStage(stage: string, group: string | null): { stage: MatchStage; group_name: string | null } {
   const s = stage.toUpperCase()
   if (s.includes('GROUP')) return { stage: 'group', group_name: group?.replace('GROUP_', '') ?? null }
@@ -139,8 +163,11 @@ export async function POST(req: NextRequest) {
       const { stage, group_name } = mapStage(m.stage ?? '', m.group ?? null)
       const status = mapStatus(m.status ?? '')
       const isFinished = status === 'finished'
-      const homeTeam = m.homeTeam?.shortName ?? m.homeTeam?.name ?? 'TBD'
-      const awayTeam = m.awayTeam?.shortName ?? m.awayTeam?.name ?? 'TBD'
+      const existingMatch = typeof m.id === 'number' ? existingByExternalId.get(m.id) : undefined
+      const incomingHomeTeam = m.homeTeam?.shortName ?? m.homeTeam?.name ?? 'TBD'
+      const incomingAwayTeam = m.awayTeam?.shortName ?? m.awayTeam?.name ?? 'TBD'
+      const homeTeam = keepResolvedTeamName(incomingHomeTeam, existingMatch?.home_team)
+      const awayTeam = keepResolvedTeamName(incomingAwayTeam, existingMatch?.away_team)
       const homeScore = isFinished ? (m.score?.fullTime?.home ?? null) : null
       const awayScore = isFinished ? (m.score?.fullTime?.away ?? null) : null
       const apiWinner = m.score?.winner
@@ -156,7 +183,6 @@ export async function POST(req: NextRequest) {
               : null
         : null
 
-      const existingMatch = typeof m.id === 'number' ? existingByExternalId.get(m.id) : undefined
       const matchupChanged = !!existingMatch && (
         existingMatch.home_team !== homeTeam ||
         existingMatch.away_team !== awayTeam

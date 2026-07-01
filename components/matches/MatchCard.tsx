@@ -334,7 +334,7 @@ export function MatchCard({
             <span className="text-xs font-black uppercase tracking-wider" style={{ color: match.went_to_penalties ? 'var(--gold)' : 'var(--accent)' }}>
               Final result
             </span>
-            <span className="text-lg font-black tabular-nums" style={{ color: 'var(--text)' }}>
+            <span className="text-xs font-black uppercase tracking-wider tabular-nums" style={{ color: match.went_to_penalties ? 'var(--gold)' : 'var(--accent)' }}>
               {match.home_score}-{match.away_score}
             </span>
             {match.went_to_penalties && match.result_winner_team && (

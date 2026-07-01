@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { CalendarClock, Eye, EyeOff, History, Layers3 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { CalendarClock, Eye, EyeOff, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
-import { isWithinLastHours, stageLabel, stageOrder } from '@/lib/utils'
+import { stageLabel, stageOrder } from '@/lib/utils'
 import type { MatchWithPrediction, MatchPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
 
 interface Props {
@@ -37,7 +37,7 @@ export function MatchList({
 }: Props) {
   const [sortByKickoff, setSortByKickoff] = useState(true)
   const [showFinished, setShowFinished] = useState(false)
-  const [showLast24hFinished, setShowLast24hFinished] = useState(false)
+  const todayMatchRef = useRef<HTMLDivElement | null>(null)
 
   if (matches.length === 0) {
     return (
@@ -77,14 +77,13 @@ export function MatchList({
   // Build match-id → recap lookup for O(1) access in render
   const recapMap = new Map(recaps.map(r => [r.match_id, r]))
   const finishedMatches = matches.filter(match => match.status === 'finished')
-  const last24hFinishedMatches = finishedMatches.filter(match => isWithinLastHours(match.kickoff_time, 24))
-  const visibleMatches = showLast24hFinished
-    ? last24hFinishedMatches
-    : showFinished
+  const visibleMatches = showFinished
     ? matches
     : matches.filter(match => match.status !== 'finished')
   const finishedCount = finishedMatches.length
-  const showingAllFinished = showFinished && !showLast24hFinished
+  const showingAllFinished = showFinished
+  const todayKey = localDateKey(new Date())
+  const todayMatchCount = matches.filter(match => localDateKey(match.kickoff_time) === todayKey).length
 
   // Group by stage
   const grouped = new Map<MatchStage, MatchWithPrediction[]>()
@@ -100,62 +99,72 @@ export function MatchList({
   const chronologicalMatches = [...visibleMatches].sort(
     (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
   )
+  const firstTodayMatchId = chronologicalMatches.find(match => localDateKey(match.kickoff_time) === todayKey)?.id ?? null
+
+  const jumpToToday = () => {
+    setShowFinished(true)
+    setSortByKickoff(true)
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        todayMatchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    })
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap justify-end gap-2">
-        {finishedCount > 0 && (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {finishedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowFinished(value => !value)
+              }}
+              aria-pressed={showingAllFinished}
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
+              style={{
+                background: showingAllFinished ? 'var(--surface)' : 'var(--accent-glow)',
+                border: `1px solid ${showingAllFinished ? 'var(--border)' : 'rgba(63,185,80,0.35)'}`,
+                color: showingAllFinished ? 'var(--text-muted)' : 'var(--accent)',
+              }}
+            >
+              {showingAllFinished ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showingAllFinished ? 'Hide finished games' : `Show finished games (${finishedCount})`}
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => {
-              setShowLast24hFinished(false)
-              setShowFinished(value => !value)
-            }}
-            aria-pressed={showingAllFinished}
+            onClick={() => setSortByKickoff(value => !value)}
+            aria-pressed={sortByKickoff}
             className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
             style={{
-              background: showingAllFinished ? 'var(--surface)' : 'var(--accent-glow)',
-              border: `1px solid ${showingAllFinished ? 'var(--border)' : 'rgba(63,185,80,0.35)'}`,
-              color: showingAllFinished ? 'var(--text-muted)' : 'var(--accent)',
+              background: sortByKickoff ? 'var(--accent-glow)' : 'var(--surface)',
+              border: `1px solid ${sortByKickoff ? 'rgba(63,185,80,0.35)' : 'var(--border)'}`,
+              color: sortByKickoff ? 'var(--accent)' : 'var(--text-muted)',
             }}
           >
-            {showingAllFinished ? <EyeOff size={14} /> : <Eye size={14} />}
-            {showingAllFinished ? 'Hide finished games' : `Show finished games (${finishedCount})`}
+            {sortByKickoff ? <Layers3 size={14} /> : <CalendarClock size={14} />}
+            {sortByKickoff ? 'Group by stage' : 'Kick-off order'}
           </button>
-        )}
-        {last24hFinishedMatches.length > 0 && (
+        </div>
+        {todayMatchCount > 0 && (
           <button
             type="button"
-            onClick={() => {
-              setShowLast24hFinished(value => !value)
-              setShowFinished(false)
-            }}
-            aria-pressed={showLast24hFinished}
-            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
+            onClick={jumpToToday}
+            aria-label="Show finished games and jump to today's matches"
+            className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
             style={{
-              background: showLast24hFinished ? 'var(--accent-glow)' : 'var(--surface)',
-              border: `1px solid ${showLast24hFinished ? 'rgba(63,185,80,0.35)' : 'var(--border)'}`,
-              color: showLast24hFinished ? 'var(--accent)' : 'var(--text-muted)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-muted)',
             }}
           >
-            <History size={14} />
-            Last 24h ({last24hFinishedMatches.length})
+            <CalendarClock size={14} />
+            Today ({todayMatchCount})
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setSortByKickoff(value => !value)}
-          aria-pressed={sortByKickoff}
-          className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
-          style={{
-            background: sortByKickoff ? 'var(--accent-glow)' : 'var(--surface)',
-            border: `1px solid ${sortByKickoff ? 'rgba(63,185,80,0.35)' : 'var(--border)'}`,
-            color: sortByKickoff ? 'var(--accent)' : 'var(--text-muted)',
-          }}
-        >
-          {sortByKickoff ? <Layers3 size={14} /> : <CalendarClock size={14} />}
-          {sortByKickoff ? 'Group by stage' : 'Kick-off order'}
-        </button>
       </div>
 
       {visibleMatches.length === 0 ? (
@@ -168,7 +177,6 @@ export function MatchList({
           <button
             type="button"
             onClick={() => {
-              setShowLast24hFinished(false)
               setShowFinished(true)
             }}
             className="mt-4 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold"
@@ -183,23 +191,28 @@ export function MatchList({
             className="text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-3"
             style={{ color: 'var(--text-muted)' }}
           >
-            <span>{showLast24hFinished ? 'Finished in last 24h' : 'All matches by kick-off'}</span>
+            <span>All matches by kick-off</span>
             <span className="flex-1 h-px" style={{ background: 'var(--border)' }} />
             <span style={{ color: 'var(--text-subtle)' }}>{chronologicalMatches.length} matches</span>
           </h3>
           <div className="flex flex-col gap-3">
             {chronologicalMatches.map(match => (
-              <MatchCard
+              <div
                 key={match.id}
-                match={match}
-                playerId={playerId}
-                recap={recapMap.get(match.id)}
-                reveal={reveals.get(match.id)}
-                tournamentMatches={matches}
-                readOnly={readOnly}
-                scoringMode={scoringMode}
-                onPredictionSaved={onPredictionSaved}
-              />
+                ref={match.id === firstTodayMatchId ? todayMatchRef : undefined}
+                className={match.id === firstTodayMatchId ? 'scroll-mt-28' : undefined}
+              >
+                <MatchCard
+                  match={match}
+                  playerId={playerId}
+                  recap={recapMap.get(match.id)}
+                  reveal={reveals.get(match.id)}
+                  tournamentMatches={matches}
+                  readOnly={readOnly}
+                  scoringMode={scoringMode}
+                  onPredictionSaved={onPredictionSaved}
+                />
+              </div>
             ))}
           </div>
         </section>
@@ -302,4 +315,13 @@ function GroupStageSection({
       ))}
     </div>
   )
+}
+
+function localDateKey(input: string | Date): string {
+  const date = input instanceof Date ? input : new Date(input)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
 }

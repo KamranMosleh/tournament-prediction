@@ -50,6 +50,8 @@ export function buildMatchRevealData(
               realAway: match.away_score,
               stage: match.stage,
               mode: scoringMode,
+              homeTeam: match.home_team,
+              awayTeam: match.away_team,
               predictedPenaltyWinner: pred.penalty_winner_team,
               resultWinnerTeam: match.result_winner_team,
               wentToPenalties: match.went_to_penalties,

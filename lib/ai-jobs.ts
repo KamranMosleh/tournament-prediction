@@ -468,17 +468,27 @@ function normalizeScoreLabel(value: string): string {
     .trim()
 }
 
-function existingRecapMatchesActual(
+function existingRecapMatchesPrompt(
   existing: ExistingMatchRecap | null,
-  actualResult: string
+  actualResult: string,
+  promptPlayers: PlayerPredictionInput[]
 ): boolean {
   if (!existing?.roasts || existing.roasts.length === 0) return false
 
   const normalizedActual = normalizeScoreLabel(actualResult)
-  return existing.roasts.every(roast =>
-    typeof roast.actual === 'string' &&
-    normalizeScoreLabel(roast.actual) === normalizedActual
-  )
+  const roastsByPlayer = new Map(existing.roasts.map(roast => [roast.player_name, roast]))
+
+  return promptPlayers.every(player => {
+    const roast = roastsByPlayer.get(player.name)
+
+    return (
+      !!roast &&
+      typeof roast.actual === 'string' &&
+      normalizeScoreLabel(roast.actual) === normalizedActual &&
+      (roast.prediction ?? null) === (player.prediction ?? null) &&
+      roast.points === player.points
+    )
+  })
 }
 
 function buildDailyCoverageFingerprint(
@@ -728,23 +738,6 @@ export async function generateMatchRecap(
     .maybeSingle()
 
   const existingRecap = (existing as ExistingMatchRecap | null) ?? null
-  if (existingRecapMatchesActual(existingRecap, actualResult)) {
-    return { status: 'skipped', reason: 'already current' }
-  }
-
-  if (!hasGroq) {
-    if (existingRecap) {
-      const { error: deleteError } = await supabase
-        .from('match_recaps')
-        .delete()
-        .eq('id', existingRecap.id)
-
-      if (deleteError) return { status: 'error', reason: deleteError.message }
-      return { status: 'updated', reason: 'stale recap removed; GROQ_API_KEY not set' }
-    }
-
-    return { status: 'skipped', reason: 'GROQ_API_KEY not set' }
-  }
 
   // All players in this league
   const { data: players } = await supabase
@@ -778,6 +771,8 @@ export async function generateMatchRecap(
           realAway: match.away_score,
           stage: match.stage,
           mode: league.scoring_mode,
+          homeTeam: match.home_team,
+          awayTeam: match.away_team,
           predictedPenaltyWinner: pred.penalty_winner_team,
           resultWinnerTeam: match.result_winner_team,
           wentToPenalties: match.went_to_penalties,
@@ -789,6 +784,24 @@ export async function generateMatchRecap(
       points: pts,
     }
   })
+
+  if (existingRecapMatchesPrompt(existingRecap, actualResult, promptPlayers)) {
+    return { status: 'skipped', reason: 'already current' }
+  }
+
+  if (!hasGroq) {
+    if (existingRecap) {
+      const { error: deleteError } = await supabase
+        .from('match_recaps')
+        .delete()
+        .eq('id', existingRecap.id)
+
+      if (deleteError) return { status: 'error', reason: deleteError.message }
+      return { status: 'updated', reason: 'stale recap removed; GROQ_API_KEY not set' }
+    }
+
+    return { status: 'skipped', reason: 'GROQ_API_KEY not set' }
+  }
 
   // Ask Groq for structured JSON response
   interface RecapResponse {

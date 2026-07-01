@@ -106,7 +106,7 @@ Match prediction scoring:
 
 In multiplied mode, stage multipliers are group x1, round of 32 x2, round of 16 x2, quarter-final x3, semi-final x4, third place x4, and final x5.
 In flat mode, every stage remains 3/2/1/0 with no multiplier.
-For non-group matches, a draw prediction can include a penalty shootout winner. If the real match goes to penalties and the predicted shootout winner is correct, the player gets a small bonus: +1 in flat mode or +2 in multiplied mode. No penalty bonus is awarded if the match is won before penalties.
+For non-group matches that go to penalties, a non-draw prediction for the team that advances earns correct-outcome points. A draw prediction can also include a penalty shootout winner; if that winner is correct, the player gets a small bonus: +1 in flat mode or +2 in multiplied mode. No penalty bonus is awarded if the match is won before penalties.
 
 Tournament picks use time-weighted bonuses:
 

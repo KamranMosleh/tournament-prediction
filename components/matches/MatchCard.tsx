@@ -96,6 +96,8 @@ export function MatchCard({
       realAway: match.away_score!,
       stage: match.stage,
       mode: scoringMode,
+      homeTeam: match.home_team,
+      awayTeam: match.away_team,
       predictedPenaltyWinner: p.penalty_winner_team,
       resultWinnerTeam: match.result_winner_team,
       wentToPenalties: match.went_to_penalties,
@@ -221,14 +223,12 @@ export function MatchCard({
               <>
                 <ActualScoreBox
                   value={match.home_score!}
-                  highlighted={finalWinnerTeam === match.home_team}
-                  penaltyWinner={match.went_to_penalties}
+                  highlighted={!match.went_to_penalties && finalWinnerTeam === match.home_team}
                 />
                 <div className="pitch-divider h-9" />
                 <ActualScoreBox
                   value={match.away_score!}
-                  highlighted={finalWinnerTeam === match.away_team}
-                  penaltyWinner={match.went_to_penalties}
+                  highlighted={!match.went_to_penalties && finalWinnerTeam === match.away_team}
                 />
               </>
             ) : (
@@ -351,27 +351,21 @@ export function MatchCard({
       )}
 
       {/* Actual result (when finished) */}
-      {hasFinishedScore && (
+      {hasFinishedScore && match.went_to_penalties && match.result_winner_team && (
         <div className="px-4 pb-3">
           <div
             className="flex flex-wrap items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold"
             style={{
-              background: match.went_to_penalties ? 'rgba(210,153,34,0.12)' : 'var(--surface-2)',
-              borderColor: match.went_to_penalties ? 'rgba(210,153,34,0.28)' : 'var(--border-subtle)',
-              color: match.went_to_penalties ? 'var(--gold)' : 'var(--text)',
+              background: 'rgba(210,153,34,0.12)',
+              borderColor: 'rgba(210,153,34,0.28)',
+              color: 'var(--gold)',
             }}
           >
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              Final result
+              Decided on penalties
             </span>
-            <span className="tabular-nums">{match.home_score}-{match.away_score}</span>
-            {match.went_to_penalties && match.result_winner_team && (
-              <>
-                <span style={{ color: 'var(--text-subtle)' }}>·</span>
-                <CountryName name={match.result_winner_team} />
-                <span>won on pens</span>
-              </>
-            )}
+            <CountryName name={match.result_winner_team} />
+            <span>advanced</span>
           </div>
         </div>
       )}
@@ -520,23 +514,17 @@ function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {
 function ActualScoreBox({
   value,
   highlighted,
-  penaltyWinner,
 }: {
   value: number
   highlighted: boolean
-  penaltyWinner: boolean
 }) {
-  const highlightColor = penaltyWinner ? 'var(--gold)' : 'var(--accent)'
-  const highlightBg = penaltyWinner ? 'rgba(210,153,34,0.14)' : 'var(--accent-glow)'
-  const highlightBorder = penaltyWinner ? 'rgba(210,153,34,0.45)' : 'rgba(63,185,80,0.42)'
-
   return (
     <span
       className="flex h-11 w-12 items-center justify-center rounded-lg text-center text-xl font-black tabular-nums"
       style={{
-        background: highlighted ? highlightBg : 'var(--surface-2)',
-        border: `1.5px solid ${highlighted ? highlightBorder : 'var(--border-subtle)'}`,
-        color: highlighted ? highlightColor : 'var(--text)',
+        background: highlighted ? 'var(--accent-glow)' : 'var(--surface-2)',
+        border: `1.5px solid ${highlighted ? 'rgba(63,185,80,0.42)' : 'var(--border-subtle)'}`,
+        color: highlighted ? 'var(--accent)' : 'var(--text)',
       }}
     >
       {value}

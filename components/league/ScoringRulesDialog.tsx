@@ -137,7 +137,7 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
                 <PointCard label="Multiplied" points={PENALTY_BONUS_POINTS.multiplied} />
               </div>
               <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                Non-group draw predictions can include a shootout winner. The bonus applies only if the real match goes to penalties.
+                If a non-group match goes to penalties, a non-draw pick for the advancing team earns outcome points. Draw picks can include a shootout winner for the bonus.
               </p>
             </div>
           </RuleSection>

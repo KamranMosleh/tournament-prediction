@@ -37,6 +37,11 @@ export interface PredictionPointsResult {
   kind: MatchPointKind
 }
 
+function predictedWinnerTeam(predHome: number, predAway: number, homeTeam?: string | null, awayTeam?: string | null): string | null {
+  if (!homeTeam || !awayTeam || predHome === predAway) return null
+  return predHome > predAway ? homeTeam : awayTeam
+}
+
 function matchPointKind(
   predHome: number,
   predAway: number,
@@ -50,6 +55,44 @@ function matchPointKind(
   if (predictedDifference === realDifference) return 'difference'
   if (Math.sign(predictedDifference) === Math.sign(realDifference)) return 'outcome'
   return 'wrong'
+}
+
+function predictionPointKind({
+  predHome,
+  predAway,
+  realHome,
+  realAway,
+  stage,
+  homeTeam,
+  awayTeam,
+  resultWinnerTeam,
+  wentToPenalties,
+}: {
+  predHome: number
+  predAway: number
+  realHome: number
+  realAway: number
+  stage: MatchStage
+  homeTeam?: string | null
+  awayTeam?: string | null
+  resultWinnerTeam?: string | null
+  wentToPenalties?: boolean | null
+}): MatchPointKind {
+  const scoreKind = matchPointKind(predHome, predAway, realHome, realAway)
+  if (scoreKind !== 'wrong') return scoreKind
+
+  const predictedWinner = predictedWinnerTeam(predHome, predAway, homeTeam, awayTeam)
+  if (
+    stage !== 'group' &&
+    wentToPenalties === true &&
+    predictedWinner &&
+    resultWinnerTeam?.trim() &&
+    footballNamesMatch(predictedWinner, resultWinnerTeam)
+  ) {
+    return 'outcome'
+  }
+
+  return scoreKind
 }
 
 export function matchPoints(
@@ -69,6 +112,8 @@ export function predictionPoints({
   realAway,
   stage,
   mode = 'multiplied',
+  homeTeam,
+  awayTeam,
   predictedPenaltyWinner,
   resultWinnerTeam,
   wentToPenalties,
@@ -79,12 +124,25 @@ export function predictionPoints({
   realAway: number
   stage: MatchStage
   mode?: ScoringMode
+  homeTeam?: string | null
+  awayTeam?: string | null
   predictedPenaltyWinner?: string | null
   resultWinnerTeam?: string | null
   wentToPenalties?: boolean | null
 }): PredictionPointsResult {
-  const kind = matchPointKind(predHome, predAway, realHome, realAway)
-  const normalPoints = matchPoints(predHome, predAway, realHome, realAway, stage, mode)
+  const kind = predictionPointKind({
+    predHome,
+    predAway,
+    realHome,
+    realAway,
+    stage,
+    homeTeam,
+    awayTeam,
+    resultWinnerTeam,
+    wentToPenalties,
+  })
+  const base = BASE_MATCH_POINTS[kind]
+  const normalPoints = mode === 'multiplied' ? base * STAGE_MULTIPLIERS[stage] : base
   const penaltyBonus =
     stage !== 'group' &&
     predHome === predAway &&
@@ -191,6 +249,8 @@ export function computeLeaderboard({
         realAway: match.away_score!,
         stage: match.stage,
         mode: scoringMode,
+        homeTeam: match.home_team,
+        awayTeam: match.away_team,
         predictedPenaltyWinner: pred.penalty_winner_team,
         resultWinnerTeam: match.result_winner_team,
         wentToPenalties: match.went_to_penalties,

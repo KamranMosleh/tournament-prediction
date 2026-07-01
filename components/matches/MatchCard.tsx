@@ -69,6 +69,11 @@ export function MatchCard({
   const homeRecentResults = recentResultsForTeam(tournamentMatches, match.home_team, match.kickoff_time, match.id)
   const awayRecentResults = recentResultsForTeam(tournamentMatches, match.away_team, match.kickoff_time, match.id)
   const penaltyEligible = match.stage !== 'group'
+  const hasFinishedScore = match.status === 'finished' && match.home_score !== null && match.away_score !== null
+  const finalWinnerTeam = hasFinishedScore
+    ? match.result_winner_team
+      ?? (match.home_score! > match.away_score! ? match.home_team : match.away_score! > match.home_score! ? match.away_team : null)
+    : null
   const formScoresAreDraw =
     homeVal !== '' &&
     awayVal !== '' &&
@@ -82,13 +87,13 @@ export function MatchCard({
   let pointsEarned: number | null = null
   let pointsKind: MatchPointKind = 'wrong'
   let penaltyBonus = 0
-  if (match.status === 'finished' && match.prediction && match.home_score !== null && match.away_score !== null) {
+  if (hasFinishedScore && match.prediction) {
     const p = match.prediction
     const scored = predictionPoints({
       predHome: p.home_score,
       predAway: p.away_score,
-      realHome: match.home_score,
-      realAway: match.away_score,
+      realHome: match.home_score!,
+      realAway: match.away_score!,
       stage: match.stage,
       mode: scoringMode,
       predictedPenaltyWinner: p.penalty_winner_team,
@@ -202,12 +207,40 @@ export function MatchCard({
           <CountryName name={match.home_team} reverse className="justify-end" />
         </span>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <ScoreBox value={homeVal} onChange={setHomeVal} onBlur={() => save(homeVal, awayVal)}
-            disabled={isLocked} ariaLabel="Home score" />
-          <div className="pitch-divider h-9" />
-          <ScoreBox value={awayVal} onChange={setAwayVal} onBlur={() => save(homeVal, awayVal)}
-            disabled={isLocked} ariaLabel="Away score" />
+        <div className="flex shrink-0 flex-col items-center gap-1.5">
+          {hasFinishedScore && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+              style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}
+            >
+              Final
+            </span>
+          )}
+          <div className="flex items-center gap-1.5">
+            {hasFinishedScore ? (
+              <>
+                <ActualScoreBox
+                  value={match.home_score!}
+                  highlighted={finalWinnerTeam === match.home_team}
+                  penaltyWinner={match.went_to_penalties}
+                />
+                <div className="pitch-divider h-9" />
+                <ActualScoreBox
+                  value={match.away_score!}
+                  highlighted={finalWinnerTeam === match.away_team}
+                  penaltyWinner={match.went_to_penalties}
+                />
+              </>
+            ) : (
+              <>
+                <ScoreBox value={homeVal} onChange={setHomeVal} onBlur={() => save(homeVal, awayVal)}
+                  disabled={isLocked} ariaLabel="Home score" />
+                <div className="pitch-divider h-9" />
+                <ScoreBox value={awayVal} onChange={setAwayVal} onBlur={() => save(homeVal, awayVal)}
+                  disabled={isLocked} ariaLabel="Away score" />
+              </>
+            )}
+          </div>
         </div>
 
         <span className="flex-1 min-w-0 font-semibold text-sm leading-tight" style={{ color: 'var(--text)' }}>
@@ -318,15 +351,28 @@ export function MatchCard({
       )}
 
       {/* Actual result (when finished) */}
-      {match.status === 'finished' && match.home_score !== null && match.away_score !== null && (
-        <div className="px-4 pb-2 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
-          Final: {match.home_score}-{match.away_score}
-          {match.went_to_penalties && match.result_winner_team && (
-            <>
-              {' '}
-              (<CountryName name={match.result_winner_team} /> won on pens)
-            </>
-          )}
+      {hasFinishedScore && (
+        <div className="px-4 pb-3">
+          <div
+            className="flex flex-wrap items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold"
+            style={{
+              background: match.went_to_penalties ? 'rgba(210,153,34,0.12)' : 'var(--surface-2)',
+              borderColor: match.went_to_penalties ? 'rgba(210,153,34,0.28)' : 'var(--border-subtle)',
+              color: match.went_to_penalties ? 'var(--gold)' : 'var(--text)',
+            }}
+          >
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              Final result
+            </span>
+            <span className="tabular-nums">{match.home_score}-{match.away_score}</span>
+            {match.went_to_penalties && match.result_winner_team && (
+              <>
+                <span style={{ color: 'var(--text-subtle)' }}>·</span>
+                <CountryName name={match.result_winner_team} />
+                <span>won on pens</span>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -468,6 +514,33 @@ function ScoreBox({ value, onChange, onBlur, disabled, ariaLabel }: {
       onFocus={e => { if (!disabled) e.target.style.borderColor = 'var(--accent)' }}
       onBlurCapture={e => { e.target.style.borderColor = disabled ? 'var(--border-subtle)' : 'var(--border)' }}
     />
+  )
+}
+
+function ActualScoreBox({
+  value,
+  highlighted,
+  penaltyWinner,
+}: {
+  value: number
+  highlighted: boolean
+  penaltyWinner: boolean
+}) {
+  const highlightColor = penaltyWinner ? 'var(--gold)' : 'var(--accent)'
+  const highlightBg = penaltyWinner ? 'rgba(210,153,34,0.14)' : 'var(--accent-glow)'
+  const highlightBorder = penaltyWinner ? 'rgba(210,153,34,0.45)' : 'rgba(63,185,80,0.42)'
+
+  return (
+    <span
+      className="flex h-11 w-12 items-center justify-center rounded-lg text-center text-xl font-black tabular-nums"
+      style={{
+        background: highlighted ? highlightBg : 'var(--surface-2)',
+        border: `1.5px solid ${highlighted ? highlightBorder : 'var(--border-subtle)'}`,
+        color: highlighted ? highlightColor : 'var(--text)',
+      }}
+    >
+      {value}
+    </span>
   )
 }
 

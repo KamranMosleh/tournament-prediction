@@ -324,17 +324,17 @@ export function MatchCard({
       {hasFinishedScore && (
         <div className="px-4 pb-3">
           <div
-            className="flex flex-wrap items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-base font-bold"
+            className="flex flex-wrap items-center justify-center gap-2.5 rounded-lg border px-3 py-3 text-lg font-black"
             style={{
               background: match.went_to_penalties ? 'rgba(210,153,34,0.18)' : 'var(--accent-glow)',
               borderColor: match.went_to_penalties ? 'rgba(210,153,34,0.45)' : 'rgba(63,185,80,0.35)',
               color: match.went_to_penalties ? 'var(--gold)' : 'var(--accent)',
             }}
           >
-            <span className="text-xs font-black uppercase tracking-wider" style={{ color: match.went_to_penalties ? 'var(--gold)' : 'var(--accent)' }}>
+            <span className="text-sm font-black uppercase tracking-wider" style={{ color: match.went_to_penalties ? 'var(--gold)' : 'var(--accent)' }}>
               Final result
             </span>
-            <span className="text-xs font-black uppercase tracking-wider tabular-nums" style={{ color: match.went_to_penalties ? 'var(--gold)' : 'var(--accent)' }}>
+            <span className="text-sm font-black uppercase tracking-wider tabular-nums" style={{ color: match.went_to_penalties ? 'var(--gold)' : 'var(--accent)' }}>
               {match.home_score}-{match.away_score}
             </span>
             {match.went_to_penalties && match.result_winner_team && (

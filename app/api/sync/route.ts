@@ -17,6 +17,16 @@ type ExistingApiMatch = {
   away_team: string
 }
 
+type ScoreSide = 'home' | 'away'
+
+type DerivedFinishedScore = {
+  homeScore: number | null
+  awayScore: number | null
+  penaltyHomeScore: number | null
+  penaltyAwayScore: number | null
+  wentToPenalties: boolean
+}
+
 function isPlaceholderTeamName(teamName: string): boolean {
   const normalized = teamName.trim().toUpperCase()
   return [
@@ -58,6 +68,137 @@ function mapStatus(status: string): MatchStatus {
   if (['FINISHED', 'AWARDED'].includes(s)) return 'finished'
   if (['IN_PLAY', 'PAUSED', 'HALFTIME', 'EXTRA_TIME', 'PENALTY'].includes(s)) return 'locked'
   return 'open'
+}
+
+function scorePartValue(part: unknown, side: ScoreSide): number | null {
+  if (!part || typeof part !== 'object') return null
+
+  const record = part as Record<string, unknown>
+  const value = record[side] ?? record[side === 'home' ? 'homeTeam' : 'awayTeam']
+
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function scoreValue(score: unknown, part: string, side: ScoreSide): number | null {
+  if (!score || typeof score !== 'object') return null
+  return scorePartValue((score as Record<string, unknown>)[part], side)
+}
+
+function scoreDuration(score: unknown): string | null {
+  if (!score || typeof score !== 'object') return null
+  const duration = (score as Record<string, unknown>).duration
+  return typeof duration === 'string' ? duration : null
+}
+
+function hasPenaltyShootoutScore(home: number | null, away: number | null): boolean {
+  return home !== null && away !== null && (home > 0 || away > 0)
+}
+
+function scoreBeforePenalties({
+  fullScore,
+  penaltyScore,
+  regularScore,
+  extraScore,
+}: {
+  fullScore: number | null
+  penaltyScore: number | null
+  regularScore: number | null
+  extraScore: number | null
+}): number | null {
+  if (regularScore !== null && extraScore !== null) return regularScore + extraScore
+  if (regularScore !== null && fullScore !== null && penaltyScore !== null) return fullScore - penaltyScore
+  if (regularScore !== null) return regularScore
+  if (fullScore !== null && penaltyScore !== null) return fullScore - penaltyScore
+  return fullScore
+}
+
+function deriveFinishedScore(score: unknown, isFinished: boolean, penaltyEligible: boolean): DerivedFinishedScore {
+  if (!isFinished) {
+    return {
+      homeScore: null,
+      awayScore: null,
+      penaltyHomeScore: null,
+      penaltyAwayScore: null,
+      wentToPenalties: false,
+    }
+  }
+
+  const fullHomeScore = scoreValue(score, 'fullTime', 'home')
+  const fullAwayScore = scoreValue(score, 'fullTime', 'away')
+  const regularHomeScore = scoreValue(score, 'regularTime', 'home')
+  const regularAwayScore = scoreValue(score, 'regularTime', 'away')
+  const extraHomeScore = scoreValue(score, 'extraTime', 'home')
+  const extraAwayScore = scoreValue(score, 'extraTime', 'away')
+  const penaltyHomeScore = scoreValue(score, 'penalties', 'home')
+  const penaltyAwayScore = scoreValue(score, 'penalties', 'away')
+  const duration = scoreDuration(score)?.toUpperCase()
+  const wentToPenalties =
+    penaltyEligible &&
+    (
+      duration === 'PENALTY_SHOOTOUT' ||
+      hasPenaltyShootoutScore(penaltyHomeScore, penaltyAwayScore)
+    )
+
+  if (!wentToPenalties) {
+    return {
+      homeScore: fullHomeScore,
+      awayScore: fullAwayScore,
+      penaltyHomeScore,
+      penaltyAwayScore,
+      wentToPenalties,
+    }
+  }
+
+  return {
+    homeScore: scoreBeforePenalties({
+      fullScore: fullHomeScore,
+      penaltyScore: penaltyHomeScore,
+      regularScore: regularHomeScore,
+      extraScore: extraHomeScore,
+    }),
+    awayScore: scoreBeforePenalties({
+      fullScore: fullAwayScore,
+      penaltyScore: penaltyAwayScore,
+      regularScore: regularAwayScore,
+      extraScore: extraAwayScore,
+    }),
+    penaltyHomeScore,
+    penaltyAwayScore,
+    wentToPenalties,
+  }
+}
+
+function resultWinnerTeam({
+  apiWinner,
+  homeTeam,
+  awayTeam,
+  homeScore,
+  awayScore,
+  penaltyHomeScore,
+  penaltyAwayScore,
+  penaltyEligible,
+  isFinished,
+}: {
+  apiWinner: unknown
+  homeTeam: string
+  awayTeam: string
+  homeScore: number | null
+  awayScore: number | null
+  penaltyHomeScore: number | null
+  penaltyAwayScore: number | null
+  penaltyEligible: boolean
+  isFinished: boolean
+}): string | null {
+  if (!penaltyEligible || !isFinished) return null
+  if (apiWinner === 'HOME_TEAM') return homeTeam
+  if (apiWinner === 'AWAY_TEAM') return awayTeam
+  if (penaltyHomeScore !== null && penaltyAwayScore !== null && penaltyHomeScore !== penaltyAwayScore) {
+    return penaltyHomeScore > penaltyAwayScore ? homeTeam : awayTeam
+  }
+  if (homeScore !== null && awayScore !== null && homeScore !== awayScore) {
+    return homeScore > awayScore ? homeTeam : awayTeam
+  }
+  return null
 }
 
 async function isAuthorized(req: NextRequest, supabase: ReturnType<typeof createServiceClient>, leagueId?: string): Promise<boolean> {
@@ -168,20 +309,25 @@ export async function POST(req: NextRequest) {
       const incomingAwayTeam = m.awayTeam?.shortName ?? m.awayTeam?.name ?? 'TBD'
       const homeTeam = keepResolvedTeamName(incomingHomeTeam, existingMatch?.home_team)
       const awayTeam = keepResolvedTeamName(incomingAwayTeam, existingMatch?.away_team)
-      const homeScore = isFinished ? (m.score?.fullTime?.home ?? null) : null
-      const awayScore = isFinished ? (m.score?.fullTime?.away ?? null) : null
-      const apiWinner = m.score?.winner
       const penaltyEligible = stage !== 'group'
-      const wentToPenalties = isFinished && m.score?.duration === 'PENALTY_SHOOTOUT'
-      const resultWinnerTeam = penaltyEligible && isFinished
-        ? apiWinner === 'HOME_TEAM'
-          ? homeTeam
-          : apiWinner === 'AWAY_TEAM'
-            ? awayTeam
-            : homeScore !== null && awayScore !== null && homeScore !== awayScore
-              ? homeScore > awayScore ? homeTeam : awayTeam
-              : null
-        : null
+      const {
+        homeScore,
+        awayScore,
+        penaltyHomeScore,
+        penaltyAwayScore,
+        wentToPenalties,
+      } = deriveFinishedScore(m.score, isFinished, penaltyEligible)
+      const winnerTeam = resultWinnerTeam({
+        apiWinner: m.score?.winner,
+        homeTeam,
+        awayTeam,
+        homeScore,
+        awayScore,
+        penaltyHomeScore,
+        penaltyAwayScore,
+        penaltyEligible,
+        isFinished,
+      })
 
       const matchupChanged = !!existingMatch && (
         existingMatch.home_team !== homeTeam ||
@@ -199,7 +345,7 @@ export async function POST(req: NextRequest) {
         status,
         home_score: homeScore,
         away_score: awayScore,
-        result_winner_team: resultWinnerTeam,
+        result_winner_team: winnerTeam,
         went_to_penalties: wentToPenalties,
         match_day: m.matchday ?? null,
         venue: m.venue ?? null,

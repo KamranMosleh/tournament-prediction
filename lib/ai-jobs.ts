@@ -284,7 +284,7 @@ export async function generatePunditSummaryForMatchDay(
     .eq('league_id', leagueId)
 
   const results = (matches as Match[])
-    .map(m => `${m.home_team} ${m.home_score}–${m.away_score} ${m.away_team}`)
+    .map(formatMatchResultLine)
     .join(', ')
 
   const scores = sortLeaderboard(computeLeaderboard({
@@ -401,6 +401,20 @@ function isFinishedWithScore(match: Match): boolean {
   return match.status === 'finished' && match.home_score !== null && match.away_score !== null
 }
 
+function appendPenaltyResult(label: string, match: Match): string {
+  return match.went_to_penalties && match.result_winner_team
+    ? `${label} (${match.result_winner_team} won on pens)`
+    : label
+}
+
+function formatActualResult(match: Match): string {
+  return appendPenaltyResult(`${match.home_score}-${match.away_score}`, match)
+}
+
+function formatMatchResultLine(match: Match): string {
+  return appendPenaltyResult(`${match.home_team} ${match.home_score}-${match.away_score} ${match.away_team}`, match)
+}
+
 function buildDailyCoverageGroups(matches: Match[]): DailyCoverageGroup[] {
   const grouped = new Map<string, Match[]>()
 
@@ -437,7 +451,7 @@ function selectDailyCoverageGroup(matches: Match[], localDate?: string): DailyCo
 function formatDailyResultLine(match: Match): string {
   const info = getVenueLocalDateInfo(match)
   const location = match.venue && info.city ? `, ${match.venue}, ${info.city}` : ''
-  return `${match.home_team} ${match.home_score}-${match.away_score} ${match.away_team}${location}`
+  return `${formatMatchResultLine(match)}${location}`
 }
 
 function formatMatchPrediction(prediction: MatchPrediction): string {
@@ -705,7 +719,7 @@ export async function generateMatchRecap(
     return { status: 'skipped', reason: 'match not finished' }
   }
 
-  const actualResult = `${match.home_score}–${match.away_score}`
+  const actualResult = formatActualResult(match as Match)
   const { data: existing } = await supabase
     .from('match_recaps')
     .select('id, roasts')

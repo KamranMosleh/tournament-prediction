@@ -318,12 +318,13 @@ export function MatchCard({
       )}
 
       {/* Actual result (when finished) */}
-      {match.status === 'finished' && match.home_score !== null && (
+      {match.status === 'finished' && match.home_score !== null && match.away_score !== null && (
         <div className="px-4 pb-2 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
           Final: {match.home_score}-{match.away_score}
           {match.went_to_penalties && match.result_winner_team && (
             <>
-              , pens: <CountryName name={match.result_winner_team} />
+              {' '}
+              (<CountryName name={match.result_winner_team} /> won on pens)
             </>
           )}
         </div>

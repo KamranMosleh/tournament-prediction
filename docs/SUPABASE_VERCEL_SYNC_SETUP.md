@@ -20,10 +20,10 @@ The solution is to keep the Next.js app on Vercel Hobby, remove Vercel Cron, and
 
 The production policy is intentionally conservative for football-data.org free usage:
 
-- A baseline sync runs once per day.
+- Baseline syncs run twice per day: once at `04:17 UTC`, and once at `05:00 America/New_York`.
 - Daily mode force-refreshes open-match AI insights after syncing, so latest results are included.
 - A match-window check runs every 10 minutes.
-- The match-window check calls football-data.org only when an unfinished match is between 30 minutes before kickoff and 6 hours after kickoff.
+- The match-window check calls football-data.org only when an unfinished match is between 30 minutes before kickoff and 2 hours after kickoff.
 - Outside that window, the Edge Function returns `No active match windows` without calling football-data.org.
 
 The flow is:
@@ -151,6 +151,7 @@ begin
     where jobname in (
       'sync-matches-every-5-min',
       'sync-matches-daily',
+      'sync-matches-daily-new-york-5am',
       'sync-matches-match-window'
     )
   loop
@@ -185,6 +186,33 @@ select cron.schedule(
 );
 
 select cron.schedule(
+  'sync-matches-daily-new-york-5am',
+  '0 9,10 * * *',
+  $$
+  select net.http_post(
+    url := (
+      select decrypted_secret
+      from vault.decrypted_secrets
+      where name = 'project_url'
+      limit 1
+    ) || '/functions/v1/sync-matches',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-sync-secret', (
+        select decrypted_secret
+        from vault.decrypted_secrets
+        where name = 'sync_secret'
+        limit 1
+      )
+    ),
+    body := '{"mode":"daily"}'::jsonb,
+    timeout_milliseconds := 120000
+  ) as request_id
+  where extract(hour from now() at time zone 'America/New_York') = 5;
+  $$
+);
+
+select cron.schedule(
   'sync-matches-match-window',
   '*/10 * * * *',
   $$
@@ -211,7 +239,7 @@ select cron.schedule(
 );
 ```
 
-The daily job runs at `04:17 UTC`. The second job checks for active match windows every 10 minutes.
+The first daily job runs at `04:17 UTC`. The New York daily job runs at `05:00 America/New_York`; it is scheduled for both `09:00 UTC` and `10:00 UTC` so daylight saving time is handled by the SQL guard. The match-window job checks for active match windows every 10 minutes.
 
 ## Manual Verification
 
@@ -254,12 +282,16 @@ Outside a match window, expect:
 
 ## Monitoring
 
-Confirm both jobs exist:
+Confirm the scheduler jobs exist:
 
 ```sql
 select jobname, schedule, active
 from cron.job
-where jobname in ('sync-matches-daily', 'sync-matches-match-window')
+where jobname in (
+  'sync-matches-daily',
+  'sync-matches-daily-new-york-5am',
+  'sync-matches-match-window'
+)
 order by jobname;
 ```
 

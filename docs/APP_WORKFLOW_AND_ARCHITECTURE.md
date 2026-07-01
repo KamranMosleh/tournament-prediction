@@ -145,7 +145,7 @@ sequenceDiagram
   V->>DB: Upsert matches and sync_log
 ```
 
-The normal policy is daily synchronization plus a ten-minute match-window check. Archived-only tournaments are ignored.
+The normal policy is twice-daily synchronization plus a ten-minute match-window check. Archived-only tournaments are ignored.
 
 ## Security Model
 

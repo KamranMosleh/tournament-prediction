@@ -8,7 +8,7 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SYNC_SECRET = Deno.env.get('SYNC_SECRET') ?? ''
 const APP_URL = (Deno.env.get('APP_URL') ?? '').replace(/\/$/, '')
 const MATCH_WINDOW_BEFORE_MS = 30 * 60 * 1000
-const MATCH_WINDOW_AFTER_MS = 6 * 60 * 60 * 1000
+const MATCH_WINDOW_AFTER_MS = 2 * 60 * 60 * 1000
 
 type SyncMode = 'daily' | 'match-window'
 type TournamentPair = {

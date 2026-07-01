@@ -4,6 +4,7 @@ A private football prediction game for friends, built with Next.js, Supabase Aut
 
 ## Table of Contents
 
+- [Tech Stack](#tech-stack)
 - [How To Play](#how-to-play)
 - [Current UI Behavior](#current-ui-behavior)
 - [Quick Start](#quick-start)
@@ -14,6 +15,13 @@ A private football prediction game for friends, built with Next.js, Supabase Aut
 - [Project Layout](#project-layout)
 - [Production Scheduling](#production-scheduling)
 - [Documentation](#documentation)
+
+## Tech Stack
+
+- Frontend: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4
+- Backend and data: Next.js API routes, Supabase Auth, Supabase Postgres, Supabase Realtime
+- Automation and AI: Supabase Edge Functions + `pg_cron`/`pg_net`, Groq AI
+- External data: football-data.org
 
 ## How To Play
 

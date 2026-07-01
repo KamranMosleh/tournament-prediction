@@ -341,7 +341,7 @@ export function MatchCard({
               <>
                 <span style={{ color: 'var(--text-subtle)' }}>·</span>
                 <CountryName name={match.result_winner_team} />
-                <span>advanced on pens</span>
+                <span>won on penalties</span>
               </>
             )}
           </div>

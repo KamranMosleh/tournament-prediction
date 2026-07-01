@@ -114,7 +114,15 @@ export function MatchList({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div
+        className="sticky z-20 -mx-4 flex flex-wrap items-center justify-between gap-2 px-4 py-2"
+        style={{
+          top: 'var(--league-header-height, 0px)',
+          background: 'var(--bg)',
+          borderBottom: '1px solid var(--border-subtle)',
+          boxShadow: '0 8px 18px rgba(0,0,0,0.08)',
+        }}
+      >
         <div className="flex flex-wrap items-center gap-2">
           {finishedCount > 0 && (
             <button
@@ -153,7 +161,7 @@ export function MatchList({
           <button
             type="button"
             onClick={jumpToToday}
-            aria-label="Show finished games and jump to today's matches"
+            aria-label="Scroll to today's matches and show finished games"
             className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
             style={{
               background: 'var(--surface)',
@@ -162,7 +170,7 @@ export function MatchList({
             }}
           >
             <CalendarClock size={14} />
-            Today ({todayMatchCount})
+            Scroll to Today ({todayMatchCount})
           </button>
         )}
       </div>
@@ -200,7 +208,7 @@ export function MatchList({
               <div
                 key={match.id}
                 ref={match.id === firstTodayMatchId ? todayMatchRef : undefined}
-                className={match.id === firstTodayMatchId ? 'scroll-mt-28' : undefined}
+                style={match.id === firstTodayMatchId ? { scrollMarginTop: 'calc(var(--league-header-height, 0px) + 64px)' } : undefined}
               >
                 <MatchCard
                   match={match}

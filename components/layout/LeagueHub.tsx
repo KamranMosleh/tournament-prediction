@@ -47,6 +47,7 @@ export function LeagueHub({
   recaps: initialRecaps,
 }: Props) {
   const router = useRouter()
+  const headerRef = useRef<HTMLElement | null>(null)
   const [tab, setTab] = useState<Tab>('leaderboard')
 
   // Live data
@@ -59,6 +60,26 @@ export function LeagueHub({
   const [recaps] = useState(initialRecaps)
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+
+    const setHeaderHeight = () => {
+      document.documentElement.style.setProperty('--league-header-height', `${header.offsetHeight}px`)
+    }
+    const observer = new ResizeObserver(setHeaderHeight)
+
+    setHeaderHeight()
+    observer.observe(header)
+    window.addEventListener('resize', setHeaderHeight)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', setHeaderHeight)
+      document.documentElement.style.removeProperty('--league-header-height')
+    }
+  }, [])
 
   // Keep client state aligned with fresh server props (e.g. after router.refresh()).
   useEffect(() => {
@@ -204,7 +225,7 @@ export function LeagueHub({
   return (
     <div className="min-h-screen flex flex-col">
       {/* Sticky header */}
-      <header className="sticky top-0 z-30 isolate"
+      <header ref={headerRef} className="sticky top-0 z-30 isolate"
         style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
         <div className="max-w-2xl mx-auto px-4 pt-3 pb-0">
           {/* Top row */}

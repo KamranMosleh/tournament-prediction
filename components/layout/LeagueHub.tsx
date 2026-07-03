@@ -232,13 +232,13 @@ export function LeagueHub({
           <div className="flex flex-wrap items-start justify-between gap-2 mb-2.5">
             <div className="flex flex-1 items-center gap-2 min-w-40">
               <button onClick={() => router.push('/')} title="All leagues"
-                className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 rounded-lg shrink-0 text-xs font-semibold transition-colors"
+                className="flex cursor-pointer items-center gap-2 px-3.5 py-2 rounded-lg shrink-0 text-sm font-semibold transition-colors"
                 style={{
                   background: 'var(--accent-glow)',
                   border: '1px solid rgba(63,185,80,0.3)',
                   color: 'var(--accent)',
                 }}>
-                <Home size={16} />
+                <Home size={18} />
                 Home
               </button>
               <div className="min-w-0">

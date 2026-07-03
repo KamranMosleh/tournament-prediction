@@ -145,6 +145,9 @@ export interface PlayerScore {
   tournament_points: number
   total_points: number
   exact_scores: number
+  correct_difference: number
+  correct_outcome: number
+  wrong_outcome: number
   predictions_submitted: number
   form_points: number
   form_max_points: number

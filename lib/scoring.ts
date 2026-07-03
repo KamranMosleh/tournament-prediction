@@ -221,6 +221,9 @@ export function computeLeaderboard({
   return players.map(player => {
     let totalMatchPoints = 0
     let exactScores = 0
+    let correctDifference = 0
+    let correctOutcome = 0
+    let wrongOutcome = 0
     let predictionsSubmitted = 0
     let formPoints = 0
     let formMaxPoints = 0
@@ -242,7 +245,7 @@ export function computeLeaderboard({
       if (!pred) continue
 
       predictionsSubmitted++
-      const pts = predictionPoints({
+      const predResult = predictionPoints({
         predHome: pred.home_score,
         predAway: pred.away_score,
         realHome: match.home_score!,
@@ -254,9 +257,16 @@ export function computeLeaderboard({
         predictedPenaltyWinner: pred.penalty_winner_team,
         resultWinnerTeam: match.result_winner_team,
         wentToPenalties: match.went_to_penalties,
-      }).total_points
+      })
+      const pts = predResult.total_points
       totalMatchPoints += pts
-      if (pred.home_score === match.home_score && pred.away_score === match.away_score) exactScores++
+
+      const kind = predResult.kind
+      if (kind === 'exact') exactScores++
+      else if (kind === 'difference') correctDifference++
+      else if (kind === 'outcome') correctOutcome++
+      else if (kind === 'wrong') wrongOutcome++
+
       if (isAfterJoin) formPoints += pts
     }
 
@@ -282,6 +292,9 @@ export function computeLeaderboard({
       tournament_points: tournamentPoints,
       total_points: totalMatchPoints + tournamentPoints,
       exact_scores: exactScores,
+      correct_difference: correctDifference,
+      correct_outcome: correctOutcome,
+      wrong_outcome: wrongOutcome,
       predictions_submitted: predictionsSubmitted,
       form_points: formPoints,
       form_max_points: formMaxPoints,

@@ -32,6 +32,11 @@ export function PredictionBreakdown({ player }: Props) {
           label="Points efficiency"
           value={pointsEfficiency === null ? '-' : `${pointsEfficiency}%`}
           hint="Share of possible match points earned since joining. Missed picks count as zero."
+        />
+        <MetricWithHint
+          label="Goal error score"
+          value={player.goal_error_score === null ? '-' : `${player.goal_error_score}`}
+          hint={goalErrorHint(player.average_goal_error)}
           align="right"
         />
       </div>
@@ -85,6 +90,14 @@ export function PredictionBreakdown({ player }: Props) {
       </div>
     </div>
   )
+}
+
+function goalErrorHint(averageGoalError: number | null): string {
+  const prefix = averageGoalError === null
+    ? 'No finished predictions yet.'
+    : `Average score miss is ${averageGoalError.toFixed(1)} goals per match.`
+
+  return `${prefix} 100 means exact scores on average; lower means further from the real scores.`
 }
 
 function MetricWithHint({

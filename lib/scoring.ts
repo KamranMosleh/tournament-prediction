@@ -227,6 +227,8 @@ export function computeLeaderboard({
     let predictionsSubmitted = 0
     let formPoints = 0
     let formMaxPoints = 0
+    let totalGoalError = 0
+    let goalErrorCount = 0
 
     for (const match of finishedMatches) {
       const maxPoints = scoringMode === 'multiplied'
@@ -260,6 +262,8 @@ export function computeLeaderboard({
       })
       const pts = predResult.total_points
       totalMatchPoints += pts
+      totalGoalError += Math.abs(pred.home_score - match.home_score!) + Math.abs(pred.away_score - match.away_score!)
+      goalErrorCount++
 
       const kind = predResult.kind
       if (kind === 'exact') exactScores++
@@ -284,6 +288,11 @@ export function computeLeaderboard({
       }
     }
 
+    const averageGoalError = goalErrorCount > 0 ? totalGoalError / goalErrorCount : null
+    const goalErrorScore = averageGoalError === null
+      ? null
+      : Math.max(0, Math.round(100 - averageGoalError * 25))
+
     return {
       player_id: player.id,
       display_name: player.display_name,
@@ -298,6 +307,8 @@ export function computeLeaderboard({
       predictions_submitted: predictionsSubmitted,
       form_points: formPoints,
       form_max_points: formMaxPoints,
+      average_goal_error: averageGoalError,
+      goal_error_score: goalErrorScore,
     }
   })
 }

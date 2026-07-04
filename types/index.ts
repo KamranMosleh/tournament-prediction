@@ -151,6 +151,8 @@ export interface PlayerScore {
   predictions_submitted: number
   form_points: number
   form_max_points: number
+  average_goal_error: number | null
+  goal_error_score: number | null
 }
 
 export interface MatchWithPrediction extends Match {

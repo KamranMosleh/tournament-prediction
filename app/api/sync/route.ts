@@ -217,6 +217,8 @@ function resultWinnerTeam({
   awayScore,
   penaltyHomeScore,
   penaltyAwayScore,
+  fullHomeScore,
+  fullAwayScore,
   penaltyEligible,
   isFinished,
 }: {
@@ -227,6 +229,8 @@ function resultWinnerTeam({
   awayScore: number | null
   penaltyHomeScore: number | null
   penaltyAwayScore: number | null
+  fullHomeScore: number | null
+  fullAwayScore: number | null
   penaltyEligible: boolean
   isFinished: boolean
 }): string | null {
@@ -235,6 +239,9 @@ function resultWinnerTeam({
   if (apiWinner === 'AWAY_TEAM') return awayTeam
   if (penaltyHomeScore !== null && penaltyAwayScore !== null && penaltyHomeScore !== penaltyAwayScore) {
     return penaltyHomeScore > penaltyAwayScore ? homeTeam : awayTeam
+  }
+  if (fullHomeScore !== null && fullAwayScore !== null && fullHomeScore !== fullAwayScore) {
+    return fullHomeScore > fullAwayScore ? homeTeam : awayTeam
   }
   if (homeScore !== null && awayScore !== null && homeScore !== awayScore) {
     return homeScore > awayScore ? homeTeam : awayTeam
@@ -351,6 +358,8 @@ export async function POST(req: NextRequest) {
       const homeTeam = keepResolvedTeamName(incomingHomeTeam, existingMatch?.home_team)
       const awayTeam = keepResolvedTeamName(incomingAwayTeam, existingMatch?.away_team)
       const penaltyEligible = stage !== 'group'
+      const fullHomeScore = scoreValue(m.score, 'fullTime', 'home')
+      const fullAwayScore = scoreValue(m.score, 'fullTime', 'away')
       const {
         homeScore,
         awayScore,
@@ -366,6 +375,8 @@ export async function POST(req: NextRequest) {
         awayScore,
         penaltyHomeScore,
         penaltyAwayScore,
+        fullHomeScore,
+        fullAwayScore,
         penaltyEligible,
         isFinished,
       })

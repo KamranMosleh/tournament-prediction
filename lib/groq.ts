@@ -49,17 +49,19 @@ export function insightPrompt(
 export function punditsPrompt(
   matchDay: number,
   results: string,
-  leaderboard: string
+  leaderboard: string,
+  movementContext = 'No leaderboard movement context available.'
 ): string {
-  return `You are a witty football TV pundit. Write 3-4 short sentences recapping the latest completed round of matches for a prediction game.\n\nInternal matchday id: ${matchDay}\nResults: ${results}\nTop leaderboard: ${leaderboard}\n\nName specific players and matches. Highlight the biggest mover. End with a look ahead. Keep it fun and pundit-like. Do not call it "Matchday ${matchDay}" in the recap text; use natural phrases like "this round", "the latest results", or "these games" instead.`
+  return `You are a witty football TV pundit. Write 3-4 short sentences recapping the latest completed round of matches for a prediction game.\n\nInternal matchday id: ${matchDay}\nResults: ${results}\nCurrent leaderboard:\n${leaderboard}\nLeaderboard movement:\n${movementContext}\n\nName specific players and matches. Use the Leaderboard movement section as the source of truth for the biggest mover; do not infer it from who is currently first. If the current leader and biggest mover are the same player, mention that player once in a combined way instead of writing redundant leader and mover sentences. If there was no rank movement, you may mention the biggest point gain instead of saying "biggest mover". End with a look ahead. Keep it fun and pundit-like. Do not call it "Matchday ${matchDay}" in the recap text; use natural phrases like "this round", "the latest results", or "these games" instead.`
 }
 
 export function dailyPunditPrompt(
   coverageLabel: string,
   results: string,
-  leaderboard: string
+  leaderboard: string,
+  movementContext = 'No leaderboard movement context available.'
 ): string {
-  return `You are a witty football TV pundit. Write 3-4 short sentences recapping these completed games for a prediction game.\n\nCoverage: ${coverageLabel}\nResults:\n${results}\nTop leaderboard: ${leaderboard}\n\nName specific players and matches. Mention venue or city only when it appears in the Results list; do not invent locations. Highlight the biggest mover if the leaderboard data supports it. Keep it fun and pundit-like. Do not call this a matchday or round; use phrases like "these results" or "the latest games".`
+  return `You are a witty football TV pundit. Write 3-4 short sentences recapping these completed games for a prediction game.\n\nCoverage: ${coverageLabel}\nResults:\n${results}\nCurrent leaderboard:\n${leaderboard}\nLeaderboard movement:\n${movementContext}\n\nName specific players and matches. Mention venue or city only when it appears in the Results list; do not invent locations. Use the Leaderboard movement section as the source of truth for the biggest mover; do not infer it from who is currently first. If the current leader and biggest mover are the same player, mention that player once in a combined way instead of writing redundant leader and mover sentences. If there was no rank movement, you may mention the biggest point gain instead of saying "biggest mover". Keep it fun and pundit-like. Do not call this a matchday or round; use phrases like "these results" or "the latest games".`
 }
 
 export interface PlayerPredictionInput {

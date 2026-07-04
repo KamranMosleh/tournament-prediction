@@ -10,6 +10,7 @@ import type {
   MatchPrediction,
   Player,
   PlayerRoast,
+  PlayerScore,
   TournamentPrediction,
 } from '@/types'
 
@@ -273,7 +274,8 @@ export async function generatePunditSummaryForMatchDay(
     .select('*')
     .eq('league_id', leagueId)
 
-  const playerIds = (players ?? []).map((p: Player) => p.id)
+  const typedPlayers = (players ?? []) as Player[]
+  const playerIds = typedPlayers.map((p: Player) => p.id)
   const { data: predictions } = playerIds.length > 0
     ? await supabase.from('match_predictions').select('*').in('player_id', playerIds)
     : { data: [] }
@@ -283,25 +285,39 @@ export async function generatePunditSummaryForMatchDay(
     .select('*')
     .eq('league_id', leagueId)
 
-  const results = (matches as Match[])
+  const typedLeague = league as League
+  const typedMatches = matches as Match[]
+  const typedScoringMatches = (scoringMatches ?? []) as Match[]
+  const typedPredictions = (predictions ?? []) as MatchPrediction[]
+  const typedTournamentPreds = (tournamentPreds ?? []) as TournamentPrediction[]
+
+  const results = typedMatches
     .map(formatMatchResultLine)
     .join(', ')
 
   const scores = sortLeaderboard(computeLeaderboard({
-    players: (players ?? []) as Player[],
-    predictions: (predictions ?? []) as MatchPrediction[],
-    matches: (scoringMatches ?? []) as Match[],
-    tournamentPredictions: (tournamentPreds ?? []) as TournamentPrediction[],
-    scoringMode: (league as League).scoring_mode,
-    officialTopScorer: (league as League).official_top_scorer_name,
+    players: typedPlayers,
+    predictions: typedPredictions,
+    matches: typedScoringMatches,
+    tournamentPredictions: typedTournamentPreds,
+    scoringMode: typedLeague.scoring_mode,
+    officialTopScorer: typedLeague.official_top_scorer_name,
   }))
 
-  const leaderboardStr = scores
-    .slice(0, 5)
-    .map((s, i) => `${i + 1}. ${s.display_name} ${s.total_points}pts`)
-    .join(', ')
+  const previousScores = computeLeaderboardBeforeCoverage({
+    players: typedPlayers,
+    predictions: typedPredictions,
+    matches: typedScoringMatches,
+    coveredMatches: typedMatches,
+    tournamentPredictions: typedTournamentPreds,
+    league: typedLeague,
+  })
+  const leaderboardContext = buildLeaderboardPromptSections(scores, previousScores)
 
-  const summary = await groqComplete(punditsPrompt(matchDay, results, leaderboardStr), 250)
+  const summary = await groqComplete(
+    punditsPrompt(matchDay, results, leaderboardContext.leaderboard, leaderboardContext.movement),
+    250
+  )
   if (!summary) return { status: 'error', reason: 'Groq returned null' }
 
   const { error: insertError } = await supabase
@@ -395,6 +411,211 @@ type DailyCoverageGroup = {
 type ExistingDailySummary = {
   id: string
   coverage_fingerprint: string | null
+}
+
+type RankedPlayerScore = PlayerScore & { rank: number }
+
+type LeaderboardMovement = {
+  player_id: string
+  display_name: string
+  previousRank: number
+  currentRank: number
+  rankDelta: number
+  previousPoints: number
+  currentPoints: number
+  pointsDelta: number
+}
+
+function rankScores(scores: PlayerScore[]): Map<string, RankedPlayerScore> {
+  const ranks = new Map<string, RankedPlayerScore>()
+  scores.forEach((score, index) => {
+    ranks.set(score.player_id, { ...score, rank: index + 1 })
+  })
+  return ranks
+}
+
+function beforeCoverageDate(coveredMatches: Match[]): Date {
+  const kickoffTimes = coveredMatches
+    .map(match => new Date(match.kickoff_time).getTime())
+    .filter(time => Number.isFinite(time))
+
+  return kickoffTimes.length > 0
+    ? new Date(Math.min(...kickoffTimes) - 1)
+    : new Date()
+}
+
+function matchesBeforeCoverage(matches: Match[], coveredMatches: Match[]): Match[] {
+  const coveredIds = new Set(coveredMatches.map(match => match.id))
+
+  return matches.map(match => coveredIds.has(match.id)
+    ? {
+        ...match,
+        status: 'locked' as const,
+        home_score: null,
+        away_score: null,
+        result_winner_team: null,
+        went_to_penalties: false,
+      }
+    : match
+  )
+}
+
+function computeLeaderboardBeforeCoverage({
+  players,
+  predictions,
+  matches,
+  coveredMatches,
+  tournamentPredictions,
+  league,
+}: {
+  players: Player[]
+  predictions: MatchPrediction[]
+  matches: Match[]
+  coveredMatches: Match[]
+  tournamentPredictions: TournamentPrediction[]
+  league: League
+}): PlayerScore[] {
+  return sortLeaderboard(computeLeaderboard({
+    players,
+    predictions,
+    matches: matchesBeforeCoverage(matches, coveredMatches),
+    tournamentPredictions,
+    scoringMode: league.scoring_mode,
+    officialTopScorer: league.official_top_scorer_name,
+    now: beforeCoverageDate(coveredMatches),
+  }))
+}
+
+function buildLeaderboardMovements(
+  currentScores: PlayerScore[],
+  previousScores: PlayerScore[]
+): LeaderboardMovement[] {
+  const previousRanks = rankScores(previousScores)
+
+  return currentScores.map((score, index) => {
+    const previous = previousRanks.get(score.player_id)
+    const currentRank = index + 1
+    const previousRank = previous?.rank ?? currentRank
+    const previousPoints = previous?.total_points ?? 0
+
+    return {
+      player_id: score.player_id,
+      display_name: score.display_name,
+      previousRank,
+      currentRank,
+      rankDelta: previousRank - currentRank,
+      previousPoints,
+      currentPoints: score.total_points,
+      pointsDelta: score.total_points - previousPoints,
+    }
+  })
+}
+
+function formatPointDelta(delta: number): string {
+  const abs = Math.abs(delta)
+  const suffix = abs === 1 ? 'pt' : 'pts'
+  const sign = delta > 0 ? '+' : delta < 0 ? '-' : ''
+  return `${sign}${abs}${suffix}`
+}
+
+function formatRankDelta(delta: number): string {
+  const abs = Math.abs(delta)
+  const suffix = abs === 1 ? 'place' : 'places'
+  if (delta > 0) return `up ${abs} ${suffix}`
+  if (delta < 0) return `down ${abs} ${suffix}`
+  return 'held position'
+}
+
+function formatLeaderboardRow(movement: LeaderboardMovement): string {
+  const rankText = movement.rankDelta === 0
+    ? `held #${movement.currentRank}`
+    : `was #${movement.previousRank}, now #${movement.currentRank}, ${formatRankDelta(movement.rankDelta)}`
+
+  return `${movement.currentRank}. ${movement.display_name} ${movement.currentPoints}pts (${rankText}, ${formatPointDelta(movement.pointsDelta)})`
+}
+
+function describeMovement(movement: LeaderboardMovement): string {
+  const rankText = movement.rankDelta === 0
+    ? `held #${movement.currentRank}`
+    : `moved ${formatRankDelta(movement.rankDelta)} from #${movement.previousRank} to #${movement.currentRank}`
+
+  return `${movement.display_name} ${rankText} with ${formatPointDelta(movement.pointsDelta)} (${movement.previousPoints}pts -> ${movement.currentPoints}pts)`
+}
+
+function selectBiggestRankMover(movements: LeaderboardMovement[]): LeaderboardMovement | null {
+  return movements
+    .filter(movement => movement.rankDelta !== 0)
+    .sort((a, b) =>
+      Math.abs(b.rankDelta) - Math.abs(a.rankDelta) ||
+      Number(b.rankDelta > 0) - Number(a.rankDelta > 0) ||
+      b.pointsDelta - a.pointsDelta ||
+      a.currentRank - b.currentRank
+    )[0] ?? null
+}
+
+function selectBiggestPointGain(movements: LeaderboardMovement[]): LeaderboardMovement | null {
+  return movements
+    .filter(movement => movement.pointsDelta > 0)
+    .sort((a, b) =>
+      b.pointsDelta - a.pointsDelta ||
+      Math.abs(b.rankDelta) - Math.abs(a.rankDelta) ||
+      a.currentRank - b.currentRank
+    )[0] ?? null
+}
+
+function buildLeaderboardPromptSections(
+  currentScores: PlayerScore[],
+  previousScores: PlayerScore[]
+): { leaderboard: string; movement: string } {
+  const movements = buildLeaderboardMovements(currentScores, previousScores)
+  const leader = movements[0] ?? null
+  const rankMover = selectBiggestRankMover(movements)
+  const pointGain = selectBiggestPointGain(movements)
+  const featuredMover = rankMover ?? pointGain
+
+  const leaderboard = movements
+    .slice(0, 5)
+    .map(formatLeaderboardRow)
+    .join('\n')
+
+  const movementLines: string[] = []
+  if (leader) {
+    movementLines.push(`Current leader: ${leader.display_name} at #1 with ${leader.currentPoints}pts.`)
+  }
+
+  if (rankMover) {
+    movementLines.push(`Biggest mover by rank: ${describeMovement(rankMover)}.`)
+  } else if (pointGain) {
+    movementLines.push(`No rank movement. Biggest point gain: ${describeMovement(pointGain)}.`)
+  } else {
+    movementLines.push('No rank movement or point gains from these games.')
+  }
+
+  if (leader && featuredMover && leader.player_id === featuredMover.player_id) {
+    movementLines.push(`${leader.display_name} is both the current leader and featured mover; mention them once, not in separate repeated sentences.`)
+  } else if (leader && featuredMover) {
+    movementLines.push(`The current leader and featured mover are different; do not call ${leader.display_name} the biggest mover.`)
+  }
+
+  return {
+    leaderboard: leaderboard || 'No leaderboard data available.',
+    movement: movementLines.join('\n'),
+  }
+}
+
+function leaderboardFingerprint(scores: PlayerScore[]): Array<Pick<
+  PlayerScore,
+  'player_id' | 'display_name' | 'match_points' | 'tournament_points' | 'total_points' | 'exact_scores' | 'predictions_submitted'
+>> {
+  return scores.map(score => ({
+    player_id: score.player_id,
+    display_name: score.display_name,
+    match_points: score.match_points,
+    tournament_points: score.tournament_points,
+    total_points: score.total_points,
+    exact_scores: score.exact_scores,
+    predictions_submitted: score.predictions_submitted,
+  }))
 }
 
 function isFinishedWithScore(match: Match): boolean {
@@ -494,10 +715,11 @@ function existingRecapMatchesPrompt(
 function buildDailyCoverageFingerprint(
   league: League,
   group: DailyCoverageGroup,
-  scores: ReturnType<typeof sortLeaderboard>
+  scores: ReturnType<typeof sortLeaderboard>,
+  previousScores: ReturnType<typeof sortLeaderboard>
 ): string {
   const payload = {
-    version: 1,
+    version: 2,
     coverageKey: group.coverageKey,
     matches: group.matches.map(match => ({
       id: match.id,
@@ -509,15 +731,8 @@ function buildDailyCoverageFingerprint(
     })),
     scoringMode: league.scoring_mode,
     officialTopScorer: league.official_top_scorer_name ?? '',
-    leaderboard: scores.map(score => ({
-      player_id: score.player_id,
-      display_name: score.display_name,
-      match_points: score.match_points,
-      tournament_points: score.tournament_points,
-      total_points: score.total_points,
-      exact_scores: score.exact_scores,
-      predictions_submitted: score.predictions_submitted,
-    })),
+    leaderboard: leaderboardFingerprint(scores),
+    previousLeaderboard: leaderboardFingerprint(previousScores),
   }
 
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex')
@@ -588,7 +803,8 @@ export async function generateLatestDailyPunditSummaryForLeague(
     .select('*')
     .eq('league_id', leagueId)
 
-  const playerIds = (players ?? []).map((p: Player) => p.id)
+  const typedPlayers = (players ?? []) as Player[]
+  const playerIds = typedPlayers.map((p: Player) => p.id)
   const { data: predictions } = playerIds.length > 0
     ? await supabase.from('match_predictions').select('*').in('player_id', playerIds)
     : { data: [] }
@@ -599,28 +815,39 @@ export async function generateLatestDailyPunditSummaryForLeague(
     .eq('league_id', leagueId)
 
   const typedLeague = league as League
+  const typedPredictions = (predictions ?? []) as MatchPrediction[]
+  const typedTournamentPreds = (tournamentPreds ?? []) as TournamentPrediction[]
   const scores = sortLeaderboard(computeLeaderboard({
-    players: (players ?? []) as Player[],
-    predictions: (predictions ?? []) as MatchPrediction[],
+    players: typedPlayers,
+    predictions: typedPredictions,
     matches: allMatches,
-    tournamentPredictions: (tournamentPreds ?? []) as TournamentPrediction[],
+    tournamentPredictions: typedTournamentPreds,
     scoringMode: typedLeague.scoring_mode,
     officialTopScorer: typedLeague.official_top_scorer_name,
   }))
 
-  const fingerprint = buildDailyCoverageFingerprint(typedLeague, group, scores)
+  const previousScores = computeLeaderboardBeforeCoverage({
+    players: typedPlayers,
+    predictions: typedPredictions,
+    matches: allMatches,
+    coveredMatches: group.matches,
+    tournamentPredictions: typedTournamentPreds,
+    league: typedLeague,
+  })
+
+  const fingerprint = buildDailyCoverageFingerprint(typedLeague, group, scores, previousScores)
   const existing = await findExistingDailySummary(supabase, leagueId, group)
   if (existing?.coverage_fingerprint === fingerprint) {
     return { status: 'skipped', reason: 'already current' }
   }
 
   const results = group.matches.map(formatDailyResultLine).join('\n')
-  const leaderboardStr = scores
-    .slice(0, 5)
-    .map((s, i) => `${i + 1}. ${s.display_name} ${s.total_points}pts`)
-    .join(', ')
+  const leaderboardContext = buildLeaderboardPromptSections(scores, previousScores)
 
-  const summary = await groqComplete(dailyPunditPrompt(group.coverageLabel, results, leaderboardStr), 250)
+  const summary = await groqComplete(
+    dailyPunditPrompt(group.coverageLabel, results, leaderboardContext.leaderboard, leaderboardContext.movement),
+    250
+  )
   if (!summary) return { status: 'error', reason: 'Groq returned null' }
 
   const payload = {

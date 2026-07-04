@@ -5,7 +5,11 @@ interface Props {
 }
 
 export function PredictionBreakdown({ player }: Props) {
-  const predictionSuccess = player.form_max_points > 0
+  const successfulPredictions = player.exact_scores + player.correct_difference + player.correct_outcome
+  const overallPredictionSuccess = player.predictions_submitted > 0
+    ? Math.round((successfulPredictions / player.predictions_submitted) * 100)
+    : null
+  const pointsEfficiency = player.form_max_points > 0
     ? Math.round((player.form_points / player.form_max_points) * 100)
     : null
 
@@ -14,32 +18,21 @@ export function PredictionBreakdown({ player }: Props) {
       style={{ borderColor: 'var(--border)' }}
       onClick={(e) => e.stopPropagation()}>
       <div
-        className="grid gap-2 sm:grid-cols-2"
+        className="flex flex-col gap-1 px-1 text-xs sm:flex-row sm:items-center sm:justify-between"
+        style={{ color: 'var(--text-muted)' }}
       >
-        <div
-          className="rounded-md sm:rounded-lg px-3 py-2"
-          style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}
-        >
-          <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            Prediction success
-          </p>
-          <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
-            {predictionSuccess === null ? '—' : `${predictionSuccess}%`}
-          </p>
-        </div>
-
-        <div
-          className="rounded-md sm:rounded-lg px-3 py-2"
-          style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}
-        >
-          <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            Total points
-          </p>
-          <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: 'var(--text)' }}>
-            {player.total_points}
-            <span className="ml-1 text-xs font-medium" style={{ color: 'var(--text-subtle)' }}>pts</span>
-          </p>
-        </div>
+        <span>
+          Overall prediction success{' '}
+          <strong className="tabular-nums" style={{ color: 'var(--accent)' }}>
+            {overallPredictionSuccess === null ? '—' : `${overallPredictionSuccess}%`}
+          </strong>
+        </span>
+        <span>
+          Points efficiency{' '}
+          <strong className="tabular-nums" style={{ color: 'var(--accent)' }}>
+            {pointsEfficiency === null ? '—' : `${pointsEfficiency}%`}
+          </strong>
+        </span>
       </div>
 
       {player.tournament_points > 0 && (

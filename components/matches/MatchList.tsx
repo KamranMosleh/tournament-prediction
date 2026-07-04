@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CalendarClock, Eye, EyeOff, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
 import { stageLabel, stageOrder } from '@/lib/utils'
@@ -36,8 +36,9 @@ export function MatchList({
   onPredictionSaved,
 }: Props) {
   const [sortByKickoff, setSortByKickoff] = useState(true)
-  const [showFinished, setShowFinished] = useState(false)
+  const [showFinished, setShowFinished] = useState(() => hasMatchToday(matches))
   const todayMatchRef = useRef<HTMLDivElement | null>(null)
+  const initialTodayScrollDoneRef = useRef(false)
 
   if (matches.length === 0) {
     return (
@@ -100,6 +101,29 @@ export function MatchList({
     (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
   )
   const firstTodayMatchId = chronologicalMatches.find(match => localDateKey(match.kickoff_time) === todayKey)?.id ?? null
+
+  useEffect(() => {
+    if (initialTodayScrollDoneRef.current || todayMatchCount === 0) return
+
+    if (!showFinished) {
+      setShowFinished(true)
+      return
+    }
+
+    if (!sortByKickoff) {
+      setSortByKickoff(true)
+      return
+    }
+
+    if (!firstTodayMatchId) return
+
+    initialTodayScrollDoneRef.current = true
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        todayMatchRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' })
+      })
+    })
+  }, [firstTodayMatchId, showFinished, sortByKickoff, todayMatchCount])
 
   const jumpToToday = () => {
     setShowFinished(true)
@@ -332,4 +356,9 @@ function localDateKey(input: string | Date): string {
   const day = String(date.getDate()).padStart(2, '0')
 
   return `${year}-${month}-${day}`
+}
+
+function hasMatchToday(matches: MatchWithPrediction[]): boolean {
+  const todayKey = localDateKey(new Date())
+  return matches.some(match => localDateKey(match.kickoff_time) === todayKey)
 }

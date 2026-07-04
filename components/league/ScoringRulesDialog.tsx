@@ -142,6 +142,14 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
             </div>
           </RuleSection>
 
+          <RuleSection icon={<BookOpen size={15} />} title="Standing indexes">
+            <ul className="space-y-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              <li><strong style={{ color: 'var(--text)' }}>Overall prediction success</strong>: measures how often submitted picks were useful. Exact scores, correct goal difference, and correct outcome all count as successful; incorrect picks do not. Missed games are not included.</li>
+              <li><strong style={{ color: 'var(--text)' }}>Points efficiency</strong>: measures how much of the available match-point value a player captured since joining. It uses the league scoring rules, including stage multipliers and penalty bonuses. Missed games count as zero.</li>
+              <li><strong style={{ color: 'var(--text)' }}>Goal error score</strong>: measures scoreline closeness for submitted picks. It averages how many total goals each pick missed by, then converts that to a 0-100 score: 100 means exact scores on average, and lower means further away.</li>
+            </ul>
+          </RuleSection>
+
           <RuleSection icon={<Trophy size={15} />} title="Tournament bonuses">
             <BonusTable
               title="Correct tournament winner"

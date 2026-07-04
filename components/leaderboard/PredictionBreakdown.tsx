@@ -14,25 +14,26 @@ export function PredictionBreakdown({ player }: Props) {
     : null
 
   return (
-    <div className="w-full mt-2.5 pt-3 border-t border-dashed flex flex-col gap-2"
+    <div
+      className="w-full mt-2.5 pt-3 border-t border-dashed flex flex-col gap-2"
       style={{ borderColor: 'var(--border)' }}
-      onClick={(e) => e.stopPropagation()}>
+      onClick={(e) => e.stopPropagation()}
+    >
       <div
         className="flex flex-col gap-1 px-1 text-xs sm:flex-row sm:items-center sm:justify-between"
         style={{ color: 'var(--text-muted)' }}
       >
-        <span>
-          Overall prediction success{' '}
-          <strong className="tabular-nums" style={{ color: 'var(--accent)' }}>
-            {overallPredictionSuccess === null ? '—' : `${overallPredictionSuccess}%`}
-          </strong>
-        </span>
-        <span>
-          Points efficiency{' '}
-          <strong className="tabular-nums" style={{ color: 'var(--accent)' }}>
-            {pointsEfficiency === null ? '—' : `${pointsEfficiency}%`}
-          </strong>
-        </span>
+        <MetricWithHint
+          label="Overall prediction success"
+          value={overallPredictionSuccess === null ? '-' : `${overallPredictionSuccess}%`}
+          hint="Share of submitted picks that were not incorrect: exact score, correct difference, or correct outcome."
+        />
+        <MetricWithHint
+          label="Points efficiency"
+          value={pointsEfficiency === null ? '-' : `${pointsEfficiency}%`}
+          hint="Share of possible match points earned since joining. Missed picks count as zero."
+          align="right"
+        />
       </div>
 
       {player.tournament_points > 0 && (
@@ -40,7 +41,7 @@ export function PredictionBreakdown({ player }: Props) {
           Tournament bonus +{player.tournament_points} pts
         </p>
       )}
-      
+
       <div className="flex justify-between items-center text-xs px-1">
         <span className="font-semibold text-xs" style={{ color: 'var(--text)' }}>
           Prediction Distribution
@@ -51,54 +52,110 @@ export function PredictionBreakdown({ player }: Props) {
       </div>
 
       <div className="grid grid-cols-4 gap-1 sm:gap-2 mt-1">
-        
-        {/* Exact Score */}
-        <div className="rounded-md sm:rounded-lg px-1 py-1.5 sm:p-2 flex flex-col items-center justify-center transition-all hover:bg-opacity-80"
-          style={{ background: 'rgba(63, 185, 80, 0.05)', border: '1px solid rgba(63, 185, 80, 0.15)' }}>
-          <span className="text-base sm:text-lg leading-none font-bold" style={{ color: 'var(--accent)' }}>
-            {player.exact_scores}
-          </span>
-          <span className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-normal sm:tracking-wider font-semibold opacity-80 leading-none text-center" style={{ color: 'var(--text-muted)' }}>
-            <span className="sm:hidden">Exact</span>
-            <span className="hidden sm:inline">Exact Score</span>
-          </span>
-        </div>
-
-        {/* Correct Difference */}
-        <div className="rounded-md sm:rounded-lg px-1 py-1.5 sm:p-2 flex flex-col items-center justify-center transition-all hover:bg-opacity-80"
-          style={{ background: 'rgba(88, 166, 255, 0.05)', border: '1px solid rgba(88, 166, 255, 0.15)' }}>
-          <span className="text-base sm:text-lg leading-none font-bold" style={{ color: 'var(--blue)' }}>
-            {player.correct_difference}
-          </span>
-          <span className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-normal sm:tracking-wider font-semibold opacity-80 leading-none text-center" style={{ color: 'var(--text-muted)' }}>
-            Difference
-          </span>
-        </div>
-
-        {/* Correct Outcome */}
-        <div className="rounded-md sm:rounded-lg px-1 py-1.5 sm:p-2 flex flex-col items-center justify-center transition-all hover:bg-opacity-80"
-          style={{ background: 'rgba(210, 153, 34, 0.05)', border: '1px solid rgba(210, 153, 34, 0.15)' }}>
-          <span className="text-base sm:text-lg leading-none font-bold" style={{ color: 'var(--gold)' }}>
-            {player.correct_outcome}
-          </span>
-          <span className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-normal sm:tracking-wider font-semibold opacity-80 leading-none text-center" style={{ color: 'var(--text-muted)' }}>
-            <span className="sm:hidden">Outcome</span>
-            <span className="hidden sm:inline">Outcome Only</span>
-          </span>
-        </div>
-
-        {/* Wrong Outcome */}
-        <div className="rounded-md sm:rounded-lg px-1 py-1.5 sm:p-2 flex flex-col items-center justify-center transition-all hover:bg-opacity-80"
-          style={{ background: 'rgba(248, 81, 73, 0.05)', border: '1px solid rgba(248, 81, 73, 0.15)' }}>
-          <span className="text-base sm:text-lg leading-none font-bold" style={{ color: 'var(--red)' }}>
-            {player.wrong_outcome}
-          </span>
-          <span className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-normal sm:tracking-wider font-semibold opacity-80 leading-none text-center" style={{ color: 'var(--text-muted)' }}>
-            Incorrect
-          </span>
-        </div>
-
+        <DistributionCell
+          value={player.exact_scores}
+          shortLabel="Exact"
+          label="Exact Score"
+          color="var(--accent)"
+          background="rgba(63, 185, 80, 0.05)"
+          border="rgba(63, 185, 80, 0.15)"
+        />
+        <DistributionCell
+          value={player.correct_difference}
+          label="Difference"
+          color="var(--blue)"
+          background="rgba(88, 166, 255, 0.05)"
+          border="rgba(88, 166, 255, 0.15)"
+        />
+        <DistributionCell
+          value={player.correct_outcome}
+          shortLabel="Outcome"
+          label="Outcome Only"
+          color="var(--gold)"
+          background="rgba(210, 153, 34, 0.05)"
+          border="rgba(210, 153, 34, 0.15)"
+        />
+        <DistributionCell
+          value={player.wrong_outcome}
+          label="Incorrect"
+          color="var(--red)"
+          background="rgba(248, 81, 73, 0.05)"
+          border="rgba(248, 81, 73, 0.15)"
+        />
       </div>
+    </div>
+  )
+}
+
+function MetricWithHint({
+  label,
+  value,
+  hint,
+  align = 'left',
+}: {
+  label: string
+  value: string
+  hint: string
+  align?: 'left' | 'right'
+}) {
+  const alignClass = align === 'right' ? 'sm:right-0 sm:left-auto' : 'left-0'
+
+  return (
+    <span
+      className="group relative inline-flex w-fit cursor-help items-center gap-1 outline-none"
+      tabIndex={0}
+      title={hint}
+    >
+      <span className="underline decoration-dotted underline-offset-4">
+        {label}
+      </span>
+      <strong className="tabular-nums" style={{ color: 'var(--accent)' }}>
+        {value}
+      </strong>
+      <span
+        className={`pointer-events-none absolute top-full z-30 mt-1 w-56 rounded-md px-2.5 py-2 text-left text-[11px] font-medium leading-snug opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100 ${alignClass}`}
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-muted)',
+        }}
+      >
+        {hint}
+      </span>
+    </span>
+  )
+}
+
+function DistributionCell({
+  value,
+  label,
+  shortLabel,
+  color,
+  background,
+  border,
+}: {
+  value: number
+  label: string
+  shortLabel?: string
+  color: string
+  background: string
+  border: string
+}) {
+  return (
+    <div
+      className="rounded-md sm:rounded-lg px-1 py-1.5 sm:p-2 flex flex-col items-center justify-center transition-all hover:bg-opacity-80"
+      style={{ background, border: `1px solid ${border}` }}
+    >
+      <span className="text-base sm:text-lg leading-none font-bold" style={{ color }}>
+        {value}
+      </span>
+      <span
+        className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-normal sm:tracking-wider font-semibold opacity-80 leading-none text-center"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {shortLabel ? <span className="sm:hidden">{shortLabel}</span> : null}
+        <span className={shortLabel ? 'hidden sm:inline' : undefined}>{label}</span>
+      </span>
     </div>
   )
 }

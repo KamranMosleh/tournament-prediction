@@ -10,16 +10,21 @@ type Props = {
   league: League
 }
 
+type PendingAction = 'archive' | 'restore' | 'delete' | 'daily-summary' | 'match-roasts'
+type AiAction = 'daily-summary' | 'match-roasts'
+
 export function LeagueLifecycleDialog({ league }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [confirmation, setConfirmation] = useState('')
-  const [pending, setPending] = useState<'archive' | 'restore' | 'delete' | null>(null)
+  const [pending, setPending] = useState<PendingAction | null>(null)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const isArchived = Boolean(league.archived_at)
 
   const updateArchiveState = async (action: 'archive' | 'restore') => {
     setError('')
+    setSuccess('')
     setPending(action)
     try {
       const res = await fetch(`/api/leagues/${league.id}`, {
@@ -43,6 +48,7 @@ export function LeagueLifecycleDialog({ league }: Props) {
 
   const deleteLeague = async () => {
     setError('')
+    setSuccess('')
     setPending('delete')
     try {
       const res = await fetch(`/api/leagues/${league.id}`, {
@@ -65,6 +71,48 @@ export function LeagueLifecycleDialog({ league }: Props) {
     }
   }
 
+  const generateAiContent = async (action: AiAction) => {
+    if (isArchived) return
+    setError('')
+    setSuccess('')
+    setPending(action)
+
+    try {
+      const res = await fetch(`/api/leagues/${league.id}/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to regenerate AI content')
+        return
+      }
+
+      if (action === 'daily-summary') {
+        const result = data.result as { status?: string; reason?: string } | undefined
+        if (result?.status === 'error') {
+          setError(result.reason ?? 'Failed to regenerate latest recap')
+          return
+        }
+        setSuccess(result?.reason ? `Latest recap: ${result.status} (${result.reason})` : 'Latest recap regenerated')
+      } else {
+        const result = data.result as { created?: number; updated?: number; skipped?: number; errors?: number } | undefined
+        const created = result?.created ?? 0
+        const updated = result?.updated ?? 0
+        const skipped = result?.skipped ?? 0
+        const errors = result?.errors ?? 0
+        setSuccess(`Roasts: ${updated} updated, ${created} created, ${skipped} skipped, ${errors} errors`)
+      }
+
+      router.refresh()
+    } catch {
+      setError('Failed to regenerate AI content')
+    } finally {
+      setPending(null)
+    }
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={value => {
       if (pending) return
@@ -72,6 +120,7 @@ export function LeagueLifecycleDialog({ league }: Props) {
       if (!value) {
         setConfirmation('')
         setError('')
+        setSuccess('')
       }
     }}>
       <Dialog.Trigger asChild>
@@ -115,6 +164,52 @@ export function LeagueLifecycleDialog({ league }: Props) {
               </button>
             </Dialog.Close>
           </div>
+
+          <section className="pb-5 mb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <Settings size={15} style={{ color: 'var(--accent)' }} />
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                AI generation
+              </h3>
+            </div>
+            <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>
+              {isArchived
+                ? 'Archived leagues are read-only. Restore this league to regenerate AI content.'
+                : 'Refresh the latest recap or rewrite the roast cards for the most recent finished games.'}
+            </p>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => generateAiContent('daily-summary')}
+                disabled={isArchived || pending !== null}
+                className="w-full min-h-10 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold leading-snug text-center"
+                style={{
+                  background: isArchived ? 'var(--surface-2)' : 'var(--accent-glow)',
+                  color: isArchived ? 'var(--text-subtle)' : 'var(--accent)',
+                  border: isArchived ? '1px solid var(--border)' : '1px solid rgba(63,185,80,0.3)',
+                  cursor: isArchived || pending ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {pending === 'daily-summary' ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                Regenerate latest recap
+              </button>
+              <button
+                type="button"
+                onClick={() => generateAiContent('match-roasts')}
+                disabled={isArchived || pending !== null}
+                className="w-full min-h-10 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold leading-snug text-center"
+                style={{
+                  background: isArchived ? 'var(--surface-2)' : 'rgba(88,166,255,0.1)',
+                  color: isArchived ? 'var(--text-subtle)' : 'var(--blue)',
+                  border: isArchived ? '1px solid var(--border)' : '1px solid rgba(88,166,255,0.25)',
+                  cursor: isArchived || pending ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {pending === 'match-roasts' ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                Regenerate all roasts for last 3 games
+              </button>
+            </div>
+          </section>
 
           <section className="pb-5 mb-5" style={{ borderBottom: '1px solid var(--border)' }}>
             <div className="flex items-center gap-2 mb-2">
@@ -189,6 +284,9 @@ export function LeagueLifecycleDialog({ league }: Props) {
 
           {error && (
             <p className="text-xs mt-4" style={{ color: 'var(--red)' }}>{error}</p>
+          )}
+          {success && (
+            <p className="text-xs mt-4" style={{ color: 'var(--accent)' }}>{success}</p>
           )}
         </Dialog.Content>
       </Dialog.Portal>

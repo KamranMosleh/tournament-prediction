@@ -94,22 +94,62 @@ function hasPenaltyShootoutScore(home: number | null, away: number | null): bool
   return home !== null && away !== null && (home > 0 || away > 0)
 }
 
+function sumNullable(left: number | null, right: number | null): number | null {
+  return left !== null && right !== null ? left + right : null
+}
+
 function scoreBeforePenalties({
-  fullScore,
-  penaltyScore,
-  regularScore,
-  extraScore,
+  fullHomeScore,
+  fullAwayScore,
+  penaltyHomeScore,
+  penaltyAwayScore,
+  regularHomeScore,
+  regularAwayScore,
+  extraHomeScore,
+  extraAwayScore,
 }: {
-  fullScore: number | null
-  penaltyScore: number | null
-  regularScore: number | null
-  extraScore: number | null
-}): number | null {
-  if (regularScore !== null && extraScore !== null) return regularScore + extraScore
-  if (regularScore !== null && fullScore !== null && penaltyScore !== null) return fullScore - penaltyScore
-  if (regularScore !== null) return regularScore
-  if (fullScore !== null && penaltyScore !== null) return fullScore - penaltyScore
-  return fullScore
+  fullHomeScore: number | null
+  fullAwayScore: number | null
+  penaltyHomeScore: number | null
+  penaltyAwayScore: number | null
+  regularHomeScore: number | null
+  regularAwayScore: number | null
+  extraHomeScore: number | null
+  extraAwayScore: number | null
+}): { homeScore: number | null; awayScore: number | null } {
+  const homeRegularAndExtra = sumNullable(regularHomeScore, extraHomeScore)
+  const awayRegularAndExtra = sumNullable(regularAwayScore, extraAwayScore)
+
+  if (homeRegularAndExtra !== null && awayRegularAndExtra !== null) {
+    return { homeScore: homeRegularAndExtra, awayScore: awayRegularAndExtra }
+  }
+
+  if (fullHomeScore !== null && fullAwayScore !== null && fullHomeScore === fullAwayScore) {
+    return { homeScore: fullHomeScore, awayScore: fullAwayScore }
+  }
+
+  if (
+    fullHomeScore !== null &&
+    fullAwayScore !== null &&
+    penaltyHomeScore !== null &&
+    penaltyAwayScore !== null
+  ) {
+    const homeWithoutPenalties = fullHomeScore - penaltyHomeScore
+    const awayWithoutPenalties = fullAwayScore - penaltyAwayScore
+    if (
+      homeWithoutPenalties >= 0 &&
+      awayWithoutPenalties >= 0 &&
+      homeWithoutPenalties === awayWithoutPenalties
+    ) {
+      return { homeScore: homeWithoutPenalties, awayScore: awayWithoutPenalties }
+    }
+  }
+
+  if (regularHomeScore !== null && regularAwayScore !== null && regularHomeScore === regularAwayScore) {
+    return { homeScore: regularHomeScore, awayScore: regularAwayScore }
+  }
+
+  return { homeScore: null, awayScore: null }
 }
 
 function deriveFinishedScore(score: unknown, isFinished: boolean, penaltyEligible: boolean): DerivedFinishedScore {
@@ -149,19 +189,20 @@ function deriveFinishedScore(score: unknown, isFinished: boolean, penaltyEligibl
     }
   }
 
+  const scoreWithoutPenalties = scoreBeforePenalties({
+    fullHomeScore,
+    fullAwayScore,
+    penaltyHomeScore,
+    penaltyAwayScore,
+    regularHomeScore,
+    regularAwayScore,
+    extraHomeScore,
+    extraAwayScore,
+  })
+
   return {
-    homeScore: scoreBeforePenalties({
-      fullScore: fullHomeScore,
-      penaltyScore: penaltyHomeScore,
-      regularScore: regularHomeScore,
-      extraScore: extraHomeScore,
-    }),
-    awayScore: scoreBeforePenalties({
-      fullScore: fullAwayScore,
-      penaltyScore: penaltyAwayScore,
-      regularScore: regularAwayScore,
-      extraScore: extraAwayScore,
-    }),
+    homeScore: scoreWithoutPenalties.homeScore,
+    awayScore: scoreWithoutPenalties.awayScore,
     penaltyHomeScore,
     penaltyAwayScore,
     wentToPenalties,

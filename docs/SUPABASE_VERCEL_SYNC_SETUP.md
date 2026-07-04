@@ -23,7 +23,8 @@ The production policy is intentionally conservative for football-data.org free u
 - Baseline syncs run twice per day: once at `04:17 UTC`, and once at `05:00 America/New_York`.
 - Daily mode force-refreshes open-match AI insights after syncing, so latest results are included.
 - A match-window check runs every 10 minutes.
-- The match-window check calls football-data.org only when an unfinished match is between 30 minutes before kickoff and 2 hours after kickoff.
+- The match-window check calls football-data.org only when a match is between 30 minutes before kickoff and 4 hours after kickoff.
+- Recently finished matches stay in that window, so delayed or corrected final scores, especially penalty shootouts, can be picked up before the next daily sync.
 - Outside that window, the Edge Function returns `No active match windows` without calling football-data.org.
 
 The flow is:

@@ -5,10 +5,48 @@ interface Props {
 }
 
 export function PredictionBreakdown({ player }: Props) {
+  const predictionSuccess = player.form_max_points > 0
+    ? Math.round((player.form_points / player.form_max_points) * 100)
+    : null
+
   return (
     <div className="w-full mt-2.5 pt-3 border-t border-dashed flex flex-col gap-2"
       style={{ borderColor: 'var(--border)' }}
       onClick={(e) => e.stopPropagation()}>
+      <div
+        className="grid gap-2 sm:grid-cols-2"
+      >
+        <div
+          className="rounded-md sm:rounded-lg px-3 py-2"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}
+        >
+          <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            Prediction success
+          </p>
+          <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
+            {predictionSuccess === null ? '—' : `${predictionSuccess}%`}
+          </p>
+        </div>
+
+        <div
+          className="rounded-md sm:rounded-lg px-3 py-2"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}
+        >
+          <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            Total points
+          </p>
+          <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: 'var(--text)' }}>
+            {player.total_points}
+            <span className="ml-1 text-xs font-medium" style={{ color: 'var(--text-subtle)' }}>pts</span>
+          </p>
+        </div>
+      </div>
+
+      {player.tournament_points > 0 && (
+        <p className="px-1 text-xs" style={{ color: 'var(--text-subtle)' }}>
+          Tournament bonus +{player.tournament_points} pts
+        </p>
+      )}
       
       <div className="flex justify-between items-center text-xs px-1">
         <span className="font-semibold text-xs" style={{ color: 'var(--text)' }}>

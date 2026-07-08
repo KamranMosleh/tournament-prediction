@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CalendarClock, Eye, EyeOff, Layers3 } from 'lucide-react'
 import { MatchCard } from './MatchCard'
 import { stageLabel, stageOrder } from '@/lib/utils'
+import { formatDateInTimeZone, resolveVenueTimeZone } from '@/lib/venue-date'
 import type { MatchWithPrediction, MatchPrediction, MatchRecap, MatchRevealData, MatchStage, ScoringMode } from '@/types'
 
 interface Props {
@@ -83,8 +84,7 @@ export function MatchList({
     : matches.filter(match => match.status !== 'finished')
   const finishedCount = finishedMatches.length
   const showingAllFinished = showFinished
-  const todayKey = localDateKey(new Date())
-  const todayMatchCount = matches.filter(match => localDateKey(match.kickoff_time) === todayKey).length
+  const todayMatchCount = matches.filter(match => isMatchToday(match)).length
 
   // Group by stage
   const grouped = new Map<MatchStage, MatchWithPrediction[]>()
@@ -100,7 +100,7 @@ export function MatchList({
   const chronologicalMatches = [...visibleMatches].sort(
     (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
   )
-  const firstTodayMatchId = chronologicalMatches.find(match => localDateKey(match.kickoff_time) === todayKey)?.id ?? null
+  const firstTodayMatchId = chronologicalMatches.find(match => isMatchToday(match))?.id ?? null
 
   useEffect(() => {
     if (initialTodayScrollDoneRef.current || todayMatchCount === 0) return
@@ -358,7 +358,14 @@ function localDateKey(input: string | Date): string {
   return `${year}-${month}-${day}`
 }
 
+function isMatchToday(match: MatchWithPrediction): boolean {
+  const resolvedTimeZone = resolveVenueTimeZone(match.venue)
+  const timeZone = resolvedTimeZone?.timeZone ?? 'UTC'
+  const todayKey = formatDateInTimeZone(new Date().toISOString(), timeZone)
+
+  return formatDateInTimeZone(match.kickoff_time, timeZone) === todayKey
+}
+
 function hasMatchToday(matches: MatchWithPrediction[]): boolean {
-  const todayKey = localDateKey(new Date())
-  return matches.some(match => localDateKey(match.kickoff_time) === todayKey)
+  return matches.some(match => isMatchToday(match))
 }

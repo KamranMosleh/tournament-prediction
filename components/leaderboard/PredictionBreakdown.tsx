@@ -19,34 +19,6 @@ export function PredictionBreakdown({ player }: Props) {
       style={{ borderColor: 'var(--border)' }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="flex flex-col gap-1 px-1 text-xs sm:flex-row sm:items-center sm:justify-between"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        <MetricWithHint
-          label="Overall prediction success"
-          value={overallPredictionSuccess === null ? '-' : `${overallPredictionSuccess}%`}
-          hint="Share of submitted picks that were not incorrect: exact score, correct difference, or correct outcome."
-        />
-        <MetricWithHint
-          label="Points efficiency"
-          value={pointsEfficiency === null ? '-' : `${pointsEfficiency}%`}
-          hint="Share of possible match points earned since joining. Missed picks count as zero."
-        />
-        <MetricWithHint
-          label="Goal error score"
-          value={player.goal_error_score === null ? '-' : `${player.goal_error_score}`}
-          hint={goalErrorHint(player.average_goal_error)}
-          align="right"
-        />
-      </div>
-
-      {player.tournament_points > 0 && (
-        <p className="px-1 text-xs" style={{ color: 'var(--text-subtle)' }}>
-          Tournament bonus +{player.tournament_points} pts
-        </p>
-      )}
-
       <div className="flex justify-between items-center text-xs px-1">
         <span className="font-semibold text-xs" style={{ color: 'var(--text)' }}>
           Prediction Distribution
@@ -88,6 +60,34 @@ export function PredictionBreakdown({ player }: Props) {
           border="rgba(248, 81, 73, 0.15)"
         />
       </div>
+
+      <div
+        className="flex flex-col gap-1 px-1 text-xs sm:flex-row sm:items-center sm:justify-between"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <MetricWithHint
+          label="Overall prediction success"
+          value={overallPredictionSuccess === null ? '-' : `${overallPredictionSuccess}%`}
+          hint="Share of submitted picks that were not incorrect: exact score, correct difference, or correct outcome."
+        />
+        <MetricWithHint
+          label="Points efficiency"
+          value={pointsEfficiency === null ? '-' : `${pointsEfficiency}%`}
+          hint="Share of possible match points earned since joining. Missed picks count as zero."
+        />
+        <MetricWithHint
+          label="Goal error score"
+          value={player.goal_error_score === null ? '-' : `${player.goal_error_score}`}
+          hint={goalErrorHint(player.average_goal_error)}
+          align="right"
+        />
+      </div>
+
+      {player.tournament_points > 0 && (
+        <p className="px-1 text-xs" style={{ color: 'var(--text-subtle)' }}>
+          Tournament bonus +{player.tournament_points} pts
+        </p>
+      )}
     </div>
   )
 }

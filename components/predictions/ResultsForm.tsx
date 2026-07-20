@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Loader2, Trophy, User } from 'lucide-react'
 import type { League, Match } from '@/types'
@@ -80,6 +80,12 @@ function TournamentResultsCard({ matches, league }: Props) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    const officialName = league.official_top_scorer_name ?? ''
+    setTopScorer(officialName)
+    setSavedTopScorer(officialName)
+  }, [league.official_top_scorer_name])
+
   const saveTopScorer = async () => {
     const value = topScorer.trim()
     if (!value || !topScorerUnlocked || state === 'saving') return
@@ -121,8 +127,23 @@ function TournamentResultsCard({ matches, league }: Props) {
         </h3>
       </div>
       <p className="text-xs mb-5" style={{ color: 'var(--text-muted)' }}>
-        The champion is detected automatically from the completed final.
+        The champion is detected from the completed final. After that match, the top scorer is
+        imported automatically when the API has one unique goals leader; use this form when the
+        API is tied or unavailable, or to correct the result.
       </p>
+      {tournamentWinner && !savedTopScorer && (
+        <p
+          className="text-xs mb-5 rounded-lg p-3"
+          style={{
+            background: 'rgba(210,153,34,0.1)',
+            border: '1px solid rgba(210,153,34,0.25)',
+            color: 'var(--gold)',
+          }}
+        >
+          No automatic top-scorer result is available yet. If the API is tied or unavailable,
+          enter the official result manually below.
+        </p>
+      )}
 
       <div
         className="flex items-center gap-3 p-3 rounded-lg mb-5"

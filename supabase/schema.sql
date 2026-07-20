@@ -469,6 +469,11 @@ END $$;
 -- ============================================================
 
 DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE leagues;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE match_predictions;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;

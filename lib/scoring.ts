@@ -5,6 +5,7 @@ import {
   topScorerPointsForSubmittedAt,
   winnerPointsForSubmittedAt,
 } from '@/lib/tournament-picks'
+import { topScorerNamesMatch as fuzzyTopScorerNamesMatch } from '@/lib/name-matching'
 
 export const BASE_MATCH_POINTS = {
   exact: 3,
@@ -177,26 +178,8 @@ export function footballNamesMatch(left: string, right: string): boolean {
   return normalizedLeft.length > 0 && normalizedLeft === normalizedRight
 }
 
-const KYLIAN_MBAPPE_ALIASES = new Set([
-  'kylianmbappe',
-  'kylianmbape',
-  'killianmbappe',
-  'killianmbape',
-  'kilianmbappe',
-  'kilianmbape',
-  'mbappe',
-  'mbape',
-])
-
 export function topScorerNamesMatch(left: string, right: string): boolean {
-  const normalizedLeft = normalizeFootballName(left)
-  const normalizedRight = normalizeFootballName(right)
-
-  if (!normalizedLeft || !normalizedRight) return false
-  if (normalizedLeft === normalizedRight) return true
-
-  return KYLIAN_MBAPPE_ALIASES.has(normalizedLeft) &&
-    KYLIAN_MBAPPE_ALIASES.has(normalizedRight)
+  return fuzzyTopScorerNamesMatch(left, right)
 }
 
 export function deriveTournamentWinner(matches: Match[]): string | null {

@@ -55,6 +55,7 @@ export function LeagueHub({
   const [matches, setMatches] = useState(initialMatches)
   const [predictions, setPredictions] = useState(initialPredictions)
   const [tournamentPredictions] = useState(initialTournamentPredictions)
+  const [officialTopScorer, setOfficialTopScorer] = useState(league.official_top_scorer_name)
   const [summaries] = useState(initialSummaries)
   const [dailySummaries, setDailySummaries] = useState(initialDailySummaries)
   const [recaps] = useState(initialRecaps)
@@ -86,8 +87,15 @@ export function LeagueHub({
     setPlayers(initialPlayers)
     setMatches(initialMatches)
     setPredictions(initialPredictions)
+    setOfficialTopScorer(league.official_top_scorer_name)
     setDailySummaries(initialDailySummaries)
-  }, [initialPlayers, initialMatches, initialPredictions, initialDailySummaries])
+  }, [
+    initialPlayers,
+    initialMatches,
+    initialPredictions,
+    initialDailySummaries,
+    league.official_top_scorer_name,
+  ])
 
   // Stable ref for player IDs to avoid Realtime re-subscribe loop
   const playerIdsRef = useRef(initialPlayers.map(p => p.id))
@@ -106,6 +114,10 @@ export function LeagueHub({
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, payload => {
         setMatches(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leagues', filter: `id=eq.${league.id}` }, payload => {
+        const scorer = payload.new.official_top_scorer_name
+        setOfficialTopScorer(typeof scorer === 'string' && scorer.trim() ? scorer : null)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_summaries', filter: `league_id=eq.${league.id}` }, () => {
         supabase
@@ -162,7 +174,7 @@ export function LeagueHub({
   const scores = sortLeaderboard(computeLeaderboard({
     players, predictions, matches, tournamentPredictions,
     scoringMode: league.scoring_mode,
-    officialTopScorer: league.official_top_scorer_name,
+    officialTopScorer,
   }))
 
   const matchesWithPredictions: MatchWithPrediction[] = matches.map(m => ({
@@ -204,7 +216,15 @@ export function LeagueHub({
       }
 
       setSyncState('success')
-      setSyncMessage(`Imported ${data.matchesUpdated ?? 0} fixtures`)
+      const scorerStatus = data.topScorerSync
+      const scorerMessage = scorerStatus?.status === 'saved'
+        ? ` · top scorer: ${scorerStatus.name}`
+        : scorerStatus?.status === 'manual_required'
+          ? ` · top scorer tied (${(scorerStatus.tiedPlayers ?? []).join(', ') || 'multiple players'}); use Results`
+          : scorerStatus?.status === 'unavailable'
+            ? ' · top scorer unavailable; use Results'
+            : ''
+      setSyncMessage(`Imported ${data.matchesUpdated ?? 0} fixtures${scorerMessage}`)
       router.refresh()
     } catch {
       setSyncState('error')
@@ -343,7 +363,10 @@ export function LeagueHub({
           />
         )}
         {tab === 'results' && currentPlayer.is_admin && (
-          <ResultsForm matches={matches} league={league} />
+          <ResultsForm
+            matches={matches}
+            league={{ ...league, official_top_scorer_name: officialTopScorer }}
+          />
         )}
       </div>
     </div>

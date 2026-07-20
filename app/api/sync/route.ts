@@ -7,6 +7,7 @@ import {
   autoGenerateMatchRecapsForTournament,
   enrichOpenMatchesForTournament,
 } from '@/lib/ai-jobs'
+import { normalizeFootballName } from '@/lib/name-matching'
 import type { MatchStage, MatchStatus } from '@/types'
 
 const FD_BASE = 'https://api.football-data.org/v4'
@@ -25,6 +26,23 @@ type DerivedFinishedScore = {
   penaltyHomeScore: number | null
   penaltyAwayScore: number | null
   wentToPenalties: boolean
+}
+
+type FootballDataScorer = {
+  player?: {
+    id?: number | null
+    name?: string | null
+  } | null
+  goals?: number | null
+}
+
+type TopScorerSyncResult = {
+  status: 'saved' | 'skipped' | 'manual_required' | 'unavailable'
+  reason?: string
+  name?: string
+  goals?: number
+  tiedPlayers?: string[]
+  leaguesUpdated?: number
 }
 
 function isPlaceholderTeamName(teamName: string): boolean {
@@ -249,6 +267,136 @@ function resultWinnerTeam({
   return null
 }
 
+async function syncUnambiguousTopScorer({
+  supabase,
+  apiKey,
+  tournamentCode,
+  season,
+}: {
+  supabase: ReturnType<typeof createServiceClient>
+  apiKey: string
+  tournamentCode: string
+  season: number
+}): Promise<TopScorerSyncResult> {
+  const { data: unresolvedLeagues, error: leagueLookupError } = await supabase
+    .from('leagues')
+    .select('id')
+    .eq('tournament_code', tournamentCode)
+    .eq('tournament_season', season)
+    .is('archived_at', null)
+    .is('official_top_scorer_name', null)
+    .limit(1)
+
+  if (leagueLookupError) {
+    return { status: 'unavailable', reason: 'Failed to check unresolved league results' }
+  }
+  if (!unresolvedLeagues?.length) {
+    return { status: 'skipped', reason: 'Official top scorer is already recorded' }
+  }
+
+  try {
+    const response = await fetch(
+      `${FD_BASE}/competitions/${tournamentCode}/scorers?season=${season}&limit=100`,
+      { headers: { 'X-Auth-Token': apiKey } }
+    )
+
+    if (!response.ok) {
+      return {
+        status: 'unavailable',
+        reason: `football-data.org scorers returned ${response.status}`,
+      }
+    }
+
+    const payload = await response.json() as {
+      filters?: { season?: string | number }
+      competition?: { code?: string | null }
+      season?: { startDate?: string | null }
+      scorers?: FootballDataScorer[]
+    }
+    const responseCode = payload.competition?.code
+    const responseSeason = Number(
+      payload.filters?.season ?? payload.season?.startDate?.slice(0, 4)
+    )
+
+    if (responseCode && responseCode !== tournamentCode) {
+      return { status: 'unavailable', reason: 'Scorers response competition did not match' }
+    }
+    if (Number.isFinite(responseSeason) && responseSeason !== season) {
+      return { status: 'unavailable', reason: 'Scorers response season did not match' }
+    }
+
+    const scorers = (payload.scorers ?? []).flatMap(scorer => {
+      const name = scorer.player?.name?.trim()
+      const goals = scorer.goals
+      if (
+        !name ||
+        name.length > 100 ||
+        typeof goals !== 'number' ||
+        !Number.isFinite(goals) ||
+        goals < 0
+      ) {
+        return []
+      }
+      return [{
+        id: scorer.player?.id ?? null,
+        name,
+        goals,
+      }]
+    })
+
+    if (!scorers.length) {
+      return { status: 'unavailable', reason: 'Scorers response contained no usable players' }
+    }
+
+    const highestGoalCount = Math.max(...scorers.map(scorer => scorer.goals))
+    const leadersByIdentity = new Map<string, { name: string; goals: number }>()
+
+    for (const scorer of scorers) {
+      if (scorer.goals !== highestGoalCount) continue
+      const identity = scorer.id === null
+        ? normalizeFootballName(scorer.name)
+        : `id:${scorer.id}`
+      if (identity) leadersByIdentity.set(identity, { name: scorer.name, goals: scorer.goals })
+    }
+
+    const leaders = [...leadersByIdentity.values()]
+    if (leaders.length !== 1) {
+      return {
+        status: 'manual_required',
+        reason: 'Multiple players share the highest goal total',
+        goals: highestGoalCount,
+        tiedPlayers: leaders.map(leader => leader.name),
+      }
+    }
+
+    const leader = leaders[0]
+    const { data: updatedLeagues, error: updateError } = await supabase
+      .from('leagues')
+      .update({ official_top_scorer_name: leader.name })
+      .eq('tournament_code', tournamentCode)
+      .eq('tournament_season', season)
+      .is('archived_at', null)
+      .is('official_top_scorer_name', null)
+      .select('id')
+
+    if (updateError) {
+      return { status: 'unavailable', reason: 'Failed to save the API top scorer' }
+    }
+
+    return {
+      status: 'saved',
+      name: leader.name,
+      goals: leader.goals,
+      leaguesUpdated: updatedLeagues?.length ?? 0,
+    }
+  } catch (error) {
+    return {
+      status: 'unavailable',
+      reason: error instanceof Error ? error.message : 'Failed to fetch top scorer',
+    }
+  }
+}
+
 async function isAuthorized(req: NextRequest, supabase: ReturnType<typeof createServiceClient>, leagueId?: string): Promise<boolean> {
   const syncSecret = process.env.SYNC_SECRET
   const xSecret = req.headers.get('x-sync-secret') ?? ''
@@ -323,6 +471,7 @@ export async function POST(req: NextRequest) {
 
   const start = Date.now()
   let matchesUpdated = 0, matchesLocked = 0, matchesFinished = 0
+  let finalFinished = false
 
   try {
     const res = await fetch(`${FD_BASE}/competitions/${tournamentCode}/matches?season=${season}`, {
@@ -352,6 +501,7 @@ export async function POST(req: NextRequest) {
       const { stage, group_name } = mapStage(m.stage ?? '', m.group ?? null)
       const status = mapStatus(m.status ?? '')
       const isFinished = status === 'finished'
+      if (stage === 'final' && isFinished) finalFinished = true
       const existingMatch = typeof m.id === 'number' ? existingByExternalId.get(m.id) : undefined
       const incomingHomeTeam = m.homeTeam?.shortName ?? m.homeTeam?.name ?? 'TBD'
       const incomingAwayTeam = m.awayTeam?.shortName ?? m.awayTeam?.name ?? 'TBD'
@@ -416,6 +566,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const topScorerSync = finalFinished
+      ? await syncUnambiguousTopScorer({
+          supabase,
+          apiKey: key,
+          tournamentCode,
+          season,
+        })
+      : { status: 'skipped', reason: 'Final is not finished' } satisfies TopScorerSyncResult
+
     await supabase.from('sync_log').insert({
       tournament_code: tournamentCode,
       tournament_season: season,
@@ -433,7 +592,17 @@ export async function POST(req: NextRequest) {
       enrichOpenMatchesForTournament(tournamentCode, season, {}, supabase),
     ])
 
-    return NextResponse.json({ ok: true, matchesUpdated, matchesLocked, matchesFinished, aiSummaries, aiDailySummaries, aiRecaps, aiEnrichment })
+    return NextResponse.json({
+      ok: true,
+      matchesUpdated,
+      matchesLocked,
+      matchesFinished,
+      topScorerSync,
+      aiSummaries,
+      aiDailySummaries,
+      aiRecaps,
+      aiEnrichment,
+    })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error'
     try {

@@ -46,7 +46,7 @@ Invite links preserve their destination through sign-in, signup, and email confi
 - Match and prediction changes are received through Supabase Realtime so standings and match views update without a full page reload.
 - The **Reveal** tab supports match-status filtering and explains when anonymous trends, named picks, and earned points become visible.
 - The **My Picks** tab shows the current tournament bonus tier, lock deadlines, saved league picks, and the point effect of changing an existing pick.
-- The **Results** tab lets admins enter the official top scorer. Manual-sync leagues also allow admins to enter and correct match results, including selecting a penalty-shootout winner for tied knockout games.
+- After a completed final, API sync records the official top scorer when football-data.org reports one unique goals leader. The **Results** tab remains the admin fallback for ties, unavailable data, and corrections. Manual-sync leagues also allow admins to enter and correct match results, including selecting a penalty-shootout winner for tied knockout games.
 - The interface is responsive: header controls and match-view buttons wrap on narrow screens, while tabs remain horizontally scrollable.
 
 ## Quick Start
@@ -122,9 +122,9 @@ Tournament picks use time-weighted bonuses:
 - Correct top scorer: 20 points before the first kickoff, then 16 before the round of 16, 12 before the quarter-finals, and 8 before the semi-finals.
 - Changing a saved pick moves that pick to the bonus tier active at the time of the change.
 - Winner picks lock at final kickoff. Top-scorer picks lock at semi-final kickoff.
-- Winner bonuses are awarded after the final is completed. Top-scorer bonuses are awarded after the lock deadline once a league admin records the official top scorer.
+- Winner bonuses are awarded after the final is completed. Top-scorer bonuses are awarded after the lock deadline once API sync records one unique goals leader or a league admin supplies the fallback result.
 - The champion is derived automatically from the completed final.
-- Team and player names are compared without case, accents, repeated spaces, hyphens, or apostrophes.
+- Team names are compared without case, accents, repeated spaces, hyphens, or apostrophes. Top-scorer predictions additionally allow reordered names, one full-name component, and small dictation or spelling errors; short names remain stricter to avoid false matches.
 
 Total points are match points plus tournament-pick bonuses. If total points are tied, the player with more exact-score predictions ranks first.
 

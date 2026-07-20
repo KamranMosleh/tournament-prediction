@@ -167,9 +167,9 @@ export function ScoringRulesDialog({ scoringMode }: Props) {
             <ul className="space-y-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               <li>Winner picks lock at final kick-off; top-scorer picks lock at semi-final kick-off.</li>
               <li>Changing a saved pick moves that pick to the bonus tier active at the time of the change.</li>
-              <li>The champion is derived automatically from the completed final. A league admin records the official top scorer.</li>
+              <li>The champion is derived from the completed final. The top scorer is imported automatically when the API has one unique goals leader; an admin handles ties, unavailable data, and corrections.</li>
               <li>Bonuses appear once the relevant deadline has passed and the official result is available.</li>
-              <li>Name matching ignores capitalization, accents, repeated spaces, hyphens, and apostrophes.</li>
+              <li>Top-scorer name matching also accepts reordered names, one full-name component such as a surname alone, and small dictation or spelling errors. Short names remain stricter to avoid false matches.</li>
               <li>Leaderboard ties are decided by the greatest number of exact-score predictions.</li>
             </ul>
           </RuleSection>

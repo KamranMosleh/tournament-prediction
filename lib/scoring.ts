@@ -177,6 +177,28 @@ export function footballNamesMatch(left: string, right: string): boolean {
   return normalizedLeft.length > 0 && normalizedLeft === normalizedRight
 }
 
+const KYLIAN_MBAPPE_ALIASES = new Set([
+  'kylianmbappe',
+  'kylianmbape',
+  'killianmbappe',
+  'killianmbape',
+  'kilianmbappe',
+  'kilianmbape',
+  'mbappe',
+  'mbape',
+])
+
+export function topScorerNamesMatch(left: string, right: string): boolean {
+  const normalizedLeft = normalizeFootballName(left)
+  const normalizedRight = normalizeFootballName(right)
+
+  if (!normalizedLeft || !normalizedRight) return false
+  if (normalizedLeft === normalizedRight) return true
+
+  return KYLIAN_MBAPPE_ALIASES.has(normalizedLeft) &&
+    KYLIAN_MBAPPE_ALIASES.has(normalizedRight)
+}
+
 export function deriveTournamentWinner(matches: Match[]): string | null {
   const final = matches
     .filter(match => match.stage === 'final')
@@ -283,7 +305,7 @@ export function computeLeaderboard({
       if (winnerAwardable && tournamentWinner && footballNamesMatch(tp.winner_team, tournamentWinner)) {
         tournamentPoints += winnerPointsForSubmittedAt(winnerSubmittedAt, pickDeadlines)
       }
-      if (topScorerAwardable && officialTopScorer && footballNamesMatch(tp.top_scorer_name, officialTopScorer)) {
+      if (topScorerAwardable && officialTopScorer && topScorerNamesMatch(tp.top_scorer_name, officialTopScorer)) {
         tournamentPoints += topScorerPointsForSubmittedAt(scorerSubmittedAt, pickDeadlines)
       }
     }

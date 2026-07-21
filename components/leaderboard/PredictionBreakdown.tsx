@@ -84,9 +84,17 @@ export function PredictionBreakdown({ player }: Props) {
       </div>
 
       {player.tournament_points > 0 && (
-        <p className="px-1 text-xs" style={{ color: 'var(--text-subtle)' }}>
-          Tournament bonus +{player.tournament_points} pts
-        </p>
+        <div
+          className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs"
+          style={{ color: 'var(--text-subtle)' }}
+        >
+          {player.winner_bonus_points > 0 && (
+            <span>Tournament winner prediction +{player.winner_bonus_points} pts</span>
+          )}
+          {player.top_scorer_bonus_points > 0 && (
+            <span>Top scorer prediction +{player.top_scorer_bonus_points} pts</span>
+          )}
+        </div>
       )}
     </div>
   )

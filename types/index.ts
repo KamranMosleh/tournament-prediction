@@ -143,6 +143,8 @@ export interface PlayerScore {
   joined_match_day: number | null
   match_points: number
   tournament_points: number
+  winner_bonus_points: number
+  top_scorer_bonus_points: number
   total_points: number
   exact_scores: number
   correct_difference: number

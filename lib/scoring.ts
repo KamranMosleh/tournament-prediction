@@ -280,16 +280,20 @@ export function computeLeaderboard({
     }
 
     let tournamentPoints = 0
+    let winnerBonusPoints = 0
+    let topScorerBonusPoints = 0
     const tp = tournamentPredictions.find(p => p.player_id === player.id)
     if (tp) {
       const winnerSubmittedAt = tp.winner_submitted_at ?? tp.submitted_at
       const scorerSubmittedAt = tp.top_scorer_submitted_at ?? tp.submitted_at
 
       if (winnerAwardable && tournamentWinner && footballNamesMatch(tp.winner_team, tournamentWinner)) {
-        tournamentPoints += winnerPointsForSubmittedAt(winnerSubmittedAt, pickDeadlines)
+        winnerBonusPoints = winnerPointsForSubmittedAt(winnerSubmittedAt, pickDeadlines)
+        tournamentPoints += winnerBonusPoints
       }
       if (topScorerAwardable && officialTopScorer && topScorerNamesMatch(tp.top_scorer_name, officialTopScorer)) {
-        tournamentPoints += topScorerPointsForSubmittedAt(scorerSubmittedAt, pickDeadlines)
+        topScorerBonusPoints = topScorerPointsForSubmittedAt(scorerSubmittedAt, pickDeadlines)
+        tournamentPoints += topScorerBonusPoints
       }
     }
 
@@ -304,6 +308,8 @@ export function computeLeaderboard({
       joined_match_day: player.joined_match_day,
       match_points: totalMatchPoints,
       tournament_points: tournamentPoints,
+      winner_bonus_points: winnerBonusPoints,
+      top_scorer_bonus_points: topScorerBonusPoints,
       total_points: totalMatchPoints + tournamentPoints,
       exact_scores: exactScores,
       correct_difference: correctDifference,
